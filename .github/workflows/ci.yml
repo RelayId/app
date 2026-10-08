@@ -1,0 +1,123 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 10.33.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24.x
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify app
+        run: pnpm verify
+
+      - name: Enforce strict unused checks
+        run: pnpm exec tsc --noEmit --noUnusedLocals --noUnusedParameters
+
+      - name: Run Expo Doctor
+        run: pnpm dlx expo-doctor@latest
+
+      - name: Validate Expo configuration
+        run: pnpm exec expo config --type public
+
+      - name: Check generated diff
+        run: git diff --check
+
+  android-prerelease:
+    needs: check
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 10.33.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24.x
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Set up Java
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android build tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0" "ndk;27.1.12297006"
+          yes | sdkmanager --licenses >/dev/null
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate native project
+        env:
+          EXPO_PUBLIC_APP_HASH: ${{ github.sha }}
+        run: pnpm exec expo prebuild --clean --platform android
+
+      - name: Make Gradle wrapper executable
+        run: chmod +x android/gradlew
+
+      - name: Build release APK
+        working-directory: android
+        env:
+          NODE_ENV: production
+          EXPO_PUBLIC_APP_HASH: ${{ github.sha }}
+        run: ./gradlew assembleRelease --no-daemon --stacktrace
+
+      - name: Name release APK
+        run: cp android/app/build/outputs/apk/release/app-release.apk relayid-android.apk
+
+      - name: Publish rolling prerelease
+        if: github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          if gh release view latest --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release edit latest --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title 'Latest RelayId Android' --prerelease --latest
+          else
+            gh release create latest --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title 'Latest RelayId Android' --prerelease --latest
+          fi
+          gh release delete-asset latest relayid-android.apk --repo "$GITHUB_REPOSITORY" --yes >/dev/null 2>&1 || true
+          gh release upload latest relayid-android.apk --repo "$GITHUB_REPOSITORY" --clobber

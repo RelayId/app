@@ -1,0 +1,30 @@
+{
+    "expo": {
+        "name": "RelayId",
+        "slug": "relayid",
+        "icon": "./assets/relayid.png",
+        "orientation": "portrait",
+        "scheme": "relayid",
+        "ios": {
+            "bundleIdentifier": "com.relayid.app",
+            "supportsTablet": true,
+            "infoPlist": {
+                "NSFaceIDUsageDescription": "RelayId uses Face ID to approve sign-in requests."
+            }
+        },
+        "android": {
+            "package": "com.relayid.app",
+            "softwareKeyboardLayoutMode": "resize",
+            "adaptiveIcon": {
+                "foregroundImage": "./assets/relayid.png",
+                "backgroundColor": "#ffffff"
+            },
+            "permissions": ["android.permission.CAMERA"]
+        },
+        "plugins": [
+            ["expo-camera", { "cameraPermission": "RelayId uses the camera to scan Relay login codes." }],
+            "expo-secure-store",
+            "@sbaiahmed1/react-native-biometrics"
+        ]
+    }
+}
