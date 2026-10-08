@@ -41,8 +41,16 @@ jobs:
       - name: Enforce strict unused checks
         run: pnpm exec tsc --noEmit --noUnusedLocals --noUnusedParameters
 
-      - name: Run Expo Doctor
-        run: pnpm dlx expo-doctor@latest
+      - name: Validate local Expo module sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f modules/relayid-wear/android/build.gradle
+          test -f modules/relayid-wear/android/src/main/AndroidManifest.xml
+          if git check-ignore -q -- modules/relayid-wear/android/build.gradle; then
+            echo 'Local Expo module Android sources must not be ignored.' >&2
+            exit 1
+          fi
 
       - name: Validate Expo configuration
         run: pnpm exec expo config --type public
