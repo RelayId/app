@@ -16,8 +16,7 @@ import { AddRelay } from './screens/AddRelay';
 import { useTheme } from './hooks/useTheme';
 import { Approve } from './screens/Approve';
 import { getProviders } from './relay/api';
-import { generateCode } from './relay/api';
-import { getWearRequests } from './relay/wear';
+import { registerWatchCapability } from './relay/api';
 import { publishRelayState } from './relay/wear';
 import { StyleSheet } from 'react-native';
 import { Enroll } from './screens/Enroll';
@@ -79,6 +78,7 @@ export function AppContent() {
     const [reconcileAttempt, setReconcileAttempt] = useState(0);
     const [pendingLoginLink, setPendingLoginLink] = useState<{ origin: string; id: string }>();
     const reconcilingAccounts = useRef(false);
+    const watchTokens = useRef(new Map<string, string>());
     const unlockedRef = useRef(false);
     const screenRef = useRef(screen);
     const deviceName = Device.deviceName || Device.modelName || 'Relay client';
@@ -86,21 +86,26 @@ export function AppContent() {
     useEffect(() => {
         if (!loaded || !unlocked) return;
 
-        publishRelayState(accounts, selectedAccount);
+        let active = true;
 
-        const interval = setInterval(() => {
-            const requests = getWearRequests();
-            for (const request of requests) {
-                const account = accounts.find((candidate) => candidate.id === request.relay_id);
-                if (!account?.mobileCode?.enabled) continue;
+        void Promise.all(
+            accounts.map(async (account) => {
+                if (!account.mobileCode?.enabled || watchTokens.current.has(account.id)) return;
 
-                void generateCode(account)
-                    .then((result) => publishRelayState(accounts, account, result.code, result.expires_at))
-                    .catch(() => publishRelayState(accounts, account));
-            }
-        }, 1000);
+                try {
+                    const capability = await registerWatchCapability(account);
+                    watchTokens.current.set(account.id, capability.token);
+                } catch {
+                    watchTokens.current.delete(account.id);
+                }
+            }),
+        ).then(() => {
+            if (active) publishRelayState(accounts, selectedAccount, undefined, undefined, watchTokens.current);
+        });
 
-        return () => clearInterval(interval);
+        return () => {
+            active = false;
+        };
     }, [accounts, loaded, selectedAccount, unlocked]);
 
     useEffect(() => {
@@ -112,10 +117,18 @@ export function AppContent() {
     }, [screen]);
 
     useEffect(() => {
-        if (!loaded || accounts.length === 0 || unlocked || unlocking) return;
+        if (!loaded || accounts.length === 0 || unlocked) return;
 
         setUnlocking(true);
         setUnlockError(false);
+        let active = true;
+        const timeout = setTimeout(() => {
+            if (!active) return;
+
+            setUnlocking(false);
+            setUnlockError(true);
+        }, 15000);
+
         void authenticateWithOptions({
             title: 'Unlock RelayId',
             subtitle: 'Your enrolled Relays stay private',
@@ -124,11 +137,23 @@ export function AppContent() {
             cancelLabel: 'Cancel',
         })
             .then((result) => {
+                if (!active) return;
+
                 if (result.success) setUnlocked(true);
                 else setUnlockError(true);
             })
-            .catch(() => setUnlockError(true))
-            .finally(() => setUnlocking(false));
+            .catch(() => {
+                if (active) setUnlockError(true);
+            })
+            .finally(() => {
+                clearTimeout(timeout);
+                if (active) setUnlocking(false);
+            });
+
+        return () => {
+            active = false;
+            clearTimeout(timeout);
+        };
     }, [accounts.length, loaded, unlockAttempt, unlocked]);
 
     useEffect(() => {
@@ -359,7 +384,6 @@ export function AppContent() {
                     </Text>
                 ) : null}
                 <AnimatedPressable
-                    disabled={unlocking}
                     style={[common.primary, { marginTop: 24 }]}
                     onPress={() => {
                         setUnlockError(false);

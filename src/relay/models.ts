@@ -25,6 +25,11 @@ export type MobileCodeCapability = {
     groups: number;
 };
 
+export type WatchCapability = {
+    token: string;
+    expires_at: string;
+};
+
 export type ProviderDiscovery = {
     providers: Provider[];
     mobileCode: MobileCodeCapability;

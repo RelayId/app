@@ -34,7 +34,7 @@ QR codes are pinned to the selected account's exact scheme, host, port, and `/lo
 
 ## Wear OS bridge
 
-On Android, RelayId exposes a small local native module for the companion Wear OS app. After the phone is unlocked, it publishes only enrolled Relay metadata and receives watch code requests through the Android Wear Data Layer. The phone generates every code through its existing signed `/api/codes` request and returns only the short-lived code, group count, and expiry. The bridge never transfers device keys, ML-DSA seeds, opaque Relay credentials, or provider tokens.
+On Android, RelayId exposes a local native module for the companion Wear OS app. After the phone is unlocked, it registers a scoped, code-only watch capability with Relay and publishes enrolled Relay metadata to the watch. The phone's native Wear listener handles watch requests while the phone UI is locked by calling Relay's watch code endpoint and returning only the short-lived code, group count, and expiry. The capability cannot approve logins, enroll providers, or call normal device endpoints. Device keys, ML-DSA seeds, opaque Relay credentials, and provider tokens never reach the watch.
 
 The native app registers the `relayid://` scheme. Enrollment uses `relayid://enroll` as its browser return URI and accepts the callback only when it has the matching `enrollment_id` and `state=verified` query value. The callback carries no credentials; it only wakes the app so the app can fetch the verified enrollment state and finish signing locally.
 

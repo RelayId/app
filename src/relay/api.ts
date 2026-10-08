@@ -9,6 +9,7 @@ import type { ProviderDiscovery } from './models';
 import type { Envelope } from './models';
 import type { Account } from './models';
 import type { Login } from './models';
+import type { WatchCapability } from './models';
 
 export type ApiError = { status: number; error: string };
 
@@ -159,4 +160,8 @@ export function denyLogin(account: Account, id: string, challenge: string): Prom
 
 export function generateCode(account: Account): Promise<{ code: string; expires_at: string }> {
     return signedRequest(account, 'POST', '/api/codes', jsonBytes({}), 'Generate Relay code');
+}
+
+export function registerWatchCapability(account: Account): Promise<WatchCapability> {
+    return signedRequest(account, 'POST', '/api/watch', jsonBytes({}), 'Enable Wear OS code access');
 }
