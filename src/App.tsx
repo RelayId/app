@@ -10,7 +10,7 @@ import { parseRelayLoginQR } from './relay/origin';
 import { useAccounts } from './hooks/useAccounts';
 import type { Account } from './relay/models';
 import { Settings } from './screens/Settings';
-import { saveAccount } from './relay/storage';
+import { readWatchCapability, saveAccount, saveWatchCapability } from './relay/storage';
 import { createCommonStyles } from './styles';
 import { AddRelay } from './screens/AddRelay';
 import { useTheme } from './hooks/useTheme';
@@ -90,10 +90,20 @@ export function AppContent() {
 
         void Promise.all(
             accounts.map(async (account) => {
-                if (!account.mobileCode?.enabled || watchTokens.current.has(account.id)) return;
+                if (!account.mobileCode?.enabled) {
+                    watchTokens.current.delete(account.id);
+                    return;
+                }
+
+                if (watchTokens.current.has(account.id)) return;
 
                 try {
-                    const capability = await registerWatchCapability(account);
+                    const stored = await readWatchCapability(account.id);
+                    const capability =
+                        stored && new Date(stored.expires_at).getTime() > Date.now()
+                            ? stored
+                            : await registerWatchCapability(account);
+                    await saveWatchCapability(account.id, capability);
                     watchTokens.current.set(account.id, capability.token);
                 } catch {
                     watchTokens.current.delete(account.id);

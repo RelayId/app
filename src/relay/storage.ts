@@ -6,6 +6,7 @@ import { randomBytes } from './base64';
 
 const indexKey = 'relayid.accounts.index';
 const manifestKey = (id: string) => `relayid.account.${encodeURIComponent(id)}.manifest`;
+const watchCapabilityKey = (id: string) => `relayid.account.${encodeURIComponent(id)}.watch-capability`;
 const chunkKey = (prefix: string, index: number) => `${prefix}.${index}`;
 const chunkSize = 900;
 const maximumAccounts = 8;
@@ -164,3 +165,24 @@ export async function saveSecret(key: string, value: string): Promise<void> {
 
 export const readSecret = (key: string) => SecureStore.getItemAsync(key);
 export const deleteSecret = (key: string) => SecureStore.deleteItemAsync(key);
+
+export async function saveWatchCapability(
+    id: string,
+    capability: { token: string; expires_at: string },
+): Promise<void> {
+    await SecureStore.setItemAsync(watchCapabilityKey(id), JSON.stringify(capability), sensitiveOptions);
+}
+
+export async function readWatchCapability(id: string): Promise<{ token: string; expires_at: string } | null> {
+    const raw = await SecureStore.getItemAsync(watchCapabilityKey(id));
+    if (!raw) return null;
+
+    const capability = JSON.parse(raw) as Partial<{ token: string; expires_at: string }>;
+    if (typeof capability.token !== 'string' || typeof capability.expires_at !== 'string') {
+        throw new Error('Relay watch capability is invalid');
+    }
+
+    return { token: capability.token, expires_at: capability.expires_at };
+}
+
+export const deleteWatchCapability = (id: string) => SecureStore.deleteItemAsync(watchCapabilityKey(id));

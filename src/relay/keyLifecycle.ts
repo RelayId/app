@@ -2,6 +2,7 @@ import { isSensorAvailable } from '@sbaiahmed1/react-native-biometrics';
 import { deleteKeys } from '@sbaiahmed1/react-native-biometrics';
 import { keyExists } from '@sbaiahmed1/react-native-biometrics';
 import { deleteAccountMetadata } from './storage';
+import { deleteWatchCapability } from './storage';
 import { deleteSecret } from './storage';
 import type { Account } from './models';
 import { readSecret } from './storage';
@@ -49,6 +50,7 @@ export async function removeLocalAccount(account: Account): Promise<void> {
     }
 
     await deleteAccountMetadata(account);
+    await deleteWatchCapability(account.id);
 }
 
 export async function removeAllLocalAccounts(accounts: Account[]): Promise<void> {
