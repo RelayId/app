@@ -189,6 +189,8 @@ jobs:
           version_name="$(node -p "require('./app.json').expo.version")"
           version_code="$(node -p "require('./app.json').expo.android.versionCode")"
           digest="$(sha256sum relayid-android.apk | cut -d ' ' -f1)"
+          aab_digest="$(sha256sum relayid-android-v${version_name}-${version_code}-arm64.aab | cut -d ' ' -f1)"
+          aab_url="https://github.com/RelayId/app/releases/download/latest/relayid-android-v${version_name}-${version_code}-arm64.aab"
           jq -n \
             --arg package 'com.relayid.app' \
             --arg versionName "$version_name" \
@@ -196,5 +198,7 @@ jobs:
             --arg downloadUrl 'https://relayid.github.io/manifest/android/' \
             --arg artifactUrl 'https://github.com/RelayId/app/releases/download/latest/relayid-android.apk' \
             --arg sha256 "$digest" \
-            '{event_type:"publish-android",client_payload:{package:$package,versionName:$versionName,versionCode:$versionCode,downloadUrl:$downloadUrl,artifactUrl:$artifactUrl,sha256:$sha256}}' |
+            --arg aabUrl "$aab_url" \
+            --arg aabSha256 "$aab_digest" \
+            '{event_type:"publish-android",client_payload:{package:$package,versionName:$versionName,versionCode:$versionCode,downloadUrl:$downloadUrl,artifactUrl:$artifactUrl,sha256:$sha256,artifacts:[{format:"apk",architecture:"arm64-v8a",artifactUrl:$artifactUrl,sha256:$sha256},{format:"aab",architecture:"arm64-v8a",artifactUrl:$aabUrl,sha256:$aabSha256}]}}' |
             gh api repos/RelayId/manifest/dispatches --input -
