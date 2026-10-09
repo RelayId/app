@@ -133,16 +133,34 @@ jobs:
       - name: Make Gradle wrapper executable
         run: chmod +x android/gradlew
 
-      - name: Build release APK
+      - name: Build release APK and AAB
         working-directory: android
         env:
           NODE_ENV: production
           EXPO_PUBLIC_APP_HASH: ${{ github.sha }}
           CXXFLAGS: -Wno-deprecated-declarations -Wno-overloaded-virtual
-        run: ./gradlew assembleRelease --no-daemon --stacktrace --max-workers=2 -PreactNativeArchitectures=arm64-v8a
+        run: ./gradlew assembleRelease bundleRelease --no-daemon --stacktrace --max-workers=2 -PreactNativeArchitectures=arm64-v8a
 
-      - name: Name release APK
-        run: cp android/app/build/outputs/apk/release/app-release.apk relayid-android.apk
+      - name: Name release APK and AAB
+        shell: bash
+        run: |
+          set -euo pipefail
+          version_name="$(node -p "require('./app.json').expo.version")"
+          version_code="$(node -p "require('./app.json').expo.android.versionCode")"
+          base="relayid-android-v${version_name}-${version_code}-arm64"
+          cp android/app/build/outputs/apk/release/app-release.apk relayid-android.apk
+          cp android/app/build/outputs/apk/release/app-release.apk "${base}.apk"
+          cp android/app/build/outputs/bundle/release/app-release.aab "${base}.aab"
+
+      - name: Upload Android release artifacts
+        uses: actions/upload-artifact@v5
+        with:
+          name: relayid-android-release
+          path: |
+            relayid-android.apk
+            relayid-android-v*.apk
+            relayid-android-v*.aab
+          if-no-files-found: error
 
       - name: Publish rolling prerelease
         if: github.event_name != 'pull_request'
@@ -156,7 +174,10 @@ jobs:
             gh release create latest --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title 'Latest RelayId Android' --prerelease --latest
           fi
           gh release delete-asset latest relayid-android.apk --repo "$GITHUB_REPOSITORY" --yes >/dev/null 2>&1 || true
-          gh release upload latest relayid-android.apk --repo "$GITHUB_REPOSITORY" --clobber
+          for asset in relayid-android.apk relayid-android-v*.apk relayid-android-v*.aab; do
+            gh release delete-asset latest "$(basename "$asset")" --repo "$GITHUB_REPOSITORY" --yes >/dev/null 2>&1 || true
+          done
+          gh release upload latest relayid-android.apk relayid-android-v*.apk relayid-android-v*.aab --repo "$GITHUB_REPOSITORY" --clobber
 
       - name: Publish update manifest metadata
         if: github.event_name != 'pull_request' && env.MANIFEST_DISPATCH_TOKEN != ''
