@@ -35,6 +35,11 @@ import { Text } from 'react-native';
 import { useEffect } from 'react';
 import { useState } from 'react';
 import { useRef } from 'react';
+import { UpdatePrompt } from './components/UpdatePrompt';
+import { checkForUpdates, type AvailableUpdate } from './relay/updates';
+import { getConnectedWatchCount } from './relay/wear';
+import { WearInstallPrompt } from './components/WearInstallPrompt';
+import type { UpdateArtifact } from './relay/updates';
 
 export type Screen =
     | { name: 'home' }
@@ -76,12 +81,37 @@ export function AppContent() {
     const [unlockError, setUnlockError] = useState(false);
     const [unlockAttempt, setUnlockAttempt] = useState(0);
     const [reconcileAttempt, setReconcileAttempt] = useState(0);
+    const [availableUpdate, setAvailableUpdate] = useState<AvailableUpdate>();
+    const [watchArtifact, setWatchArtifact] = useState<UpdateArtifact>();
     const [pendingLoginLink, setPendingLoginLink] = useState<{ origin: string; id: string }>();
     const reconcilingAccounts = useRef(false);
     const watchTokens = useRef(new Map<string, string>());
     const unlockedRef = useRef(false);
     const screenRef = useRef(screen);
     const deviceName = Device.deviceName || Device.modelName || 'Relay client';
+
+    useEffect(() => {
+        let active = true;
+        const check = () => {
+            void checkForUpdates()
+                .then(async (result) => {
+                    if (active && result.app) setAvailableUpdate(result.app);
+                    if (!active || !result.watch) return;
+                    const connectedWatches = await getConnectedWatchCount();
+                    if (active && connectedWatches > 0) setWatchArtifact(result.watch);
+                })
+                .catch(() => {
+                    // Update availability is non-critical and must never block the Relay client.
+                });
+        };
+
+        check();
+        const interval = setInterval(check, 6 * 60 * 60 * 1000);
+        return () => {
+            active = false;
+            clearInterval(interval);
+        };
+    }, []);
 
     useEffect(() => {
         if (!loaded || !unlocked) return;
@@ -514,13 +544,31 @@ export function AppContent() {
                 message={feedback?.message}
                 actions={[{ label: 'Close', onPress: () => setFeedback(undefined) }]}
             />
+            <UpdatePrompt
+                update={availableUpdate}
+                onLater={() => setAvailableUpdate(undefined)}
+                onUpdate={() => {
+                    const url = availableUpdate?.downloadUrl;
+                    setAvailableUpdate(undefined);
+                    if (url) void Linking.openURL(url);
+                }}
+            />
+            <WearInstallPrompt
+                artifact={watchArtifact}
+                onLater={() => setWatchArtifact(undefined)}
+                onOpen={() => {
+                    const url = watchArtifact?.downloadUrl;
+                    setWatchArtifact(undefined);
+                    if (url) void Linking.openURL(url);
+                }}
+            />
         </View>
     );
 }
 
 function AppHash() {
     const theme = useTheme();
-    const hash = (process.env.EXPO_PUBLIC_APP_HASH?.trim() || '7f3c9a21').slice(0, 12);
+    const hash = process.env.EXPO_PUBLIC_APP_HASH?.trim().slice(0, 12) || 'Unavailable';
     const styles = StyleSheet.create({
         container: {
             position: 'absolute',

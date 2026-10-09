@@ -1,4 +1,4 @@
-import { publishWearState } from 'relayid-wear';
+import { getConnectedWatchCount, publishWearState } from 'relayid-wear';
 import type { Account } from './models';
 import { Platform } from 'react-native';
 
@@ -16,6 +16,8 @@ export type WearState = {
     groups?: number;
     expires_in?: number;
 };
+
+export { getConnectedWatchCount };
 
 export function publishRelayState(
     accounts: Account[],

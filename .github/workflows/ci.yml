@@ -100,9 +100,31 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Configure release signing
+        if: github.event_name != 'pull_request'
+        env:
+          KEYSTORE_BASE64: ${{ secrets.RELAYID_ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.RELAYID_ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.RELAYID_ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.RELAYID_ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          test -n "$KEYSTORE_BASE64" -a -n "$KEYSTORE_PASSWORD" -a -n "$KEY_ALIAS" -a -n "$KEY_PASSWORD"
+          mkdir -p .secrets
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > .secrets/relayid-app.keystore
+          {
+            echo "RELAYID_ANDROID_KEYSTORE_PATH=$GITHUB_WORKSPACE/.secrets/relayid-app.keystore"
+            echo "RELAYID_ANDROID_KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD"
+            echo "RELAYID_ANDROID_KEY_ALIAS=$KEY_ALIAS"
+            echo "RELAYID_ANDROID_KEY_PASSWORD=$KEY_PASSWORD"
+            echo "RELAYID_REQUIRE_SIGNING=true"
+          } >> "$GITHUB_ENV"
+
       - name: Generate native project
         env:
           EXPO_PUBLIC_APP_HASH: ${{ github.sha }}
+          RELAYID_ANDROID_KEYSTORE_PATH: ${{ github.workspace }}/.secrets/relayid-app.keystore
+          RELAYID_REQUIRE_SIGNING: ${{ github.event_name != 'pull_request' && 'true' || 'false' }}
         run: pnpm exec expo prebuild --clean --platform android
 
       - name: Make Gradle wrapper executable
@@ -113,6 +135,7 @@ jobs:
         env:
           NODE_ENV: production
           EXPO_PUBLIC_APP_HASH: ${{ github.sha }}
+          CXXFLAGS: -Wno-deprecated-declarations -Wno-overloaded-virtual
         run: ./gradlew assembleRelease --no-daemon --stacktrace
 
       - name: Name release APK
@@ -131,3 +154,23 @@ jobs:
           fi
           gh release delete-asset latest relayid-android.apk --repo "$GITHUB_REPOSITORY" --yes >/dev/null 2>&1 || true
           gh release upload latest relayid-android.apk --repo "$GITHUB_REPOSITORY" --clobber
+
+      - name: Publish update manifest metadata
+        if: github.event_name != 'pull_request' && env.MANIFEST_DISPATCH_TOKEN != ''
+        env:
+          GH_TOKEN: ${{ secrets.MANIFEST_DISPATCH_TOKEN }}
+          MANIFEST_DISPATCH_TOKEN: ${{ secrets.MANIFEST_DISPATCH_TOKEN }}
+        run: |
+          set -euo pipefail
+          version_name="$(node -p "require('./app.json').expo.version")"
+          version_code="$(node -p "require('./app.json').expo.android.versionCode")"
+          digest="$(sha256sum relayid-android.apk | cut -d ' ' -f1)"
+          jq -n \
+            --arg package 'com.relayid.app' \
+            --arg versionName "$version_name" \
+            --argjson versionCode "$version_code" \
+            --arg downloadUrl 'https://relayid.github.io/manifest/android/' \
+            --arg artifactUrl 'https://github.com/RelayId/app/releases/download/latest/relayid-android.apk' \
+            --arg sha256 "$digest" \
+            '{event_type:"publish-android",client_payload:{package:$package,versionName:$versionName,versionCode:$versionCode,downloadUrl:$downloadUrl,artifactUrl:$artifactUrl,sha256:$sha256}}' |
+            gh api repos/RelayId/manifest/dispatches --input -

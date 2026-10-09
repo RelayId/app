@@ -1,6 +1,7 @@
 package com.relayid.wear
 
 import android.content.Context
+import com.google.android.gms.tasks.Tasks
 import com.google.android.gms.wearable.PutDataMapRequest
 import com.google.android.gms.wearable.Wearable
 import expo.modules.kotlin.modules.Module
@@ -21,6 +22,11 @@ class RelayIdWearModule : Module() {
             request.dataMap.putString(PAYLOAD_KEY, payload)
             Wearable.getDataClient(context)
                 .putDataItem(request.asPutDataRequest().setUrgent())
+        }
+
+        AsyncFunction("getConnectedWatchCount") {
+            val context = requireNotNull(appContext.reactContext)
+            Tasks.await(Wearable.getNodeClient(context).connectedNodes).count { it.isNearby }
         }
     }
 

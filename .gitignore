@@ -2,5 +2,12 @@ node_modules/
 .expo/
 /android/
 /ios/
+!/modules/
+!/modules/relayid-wear/
+!/modules/relayid-wear/android/
+!/modules/relayid-wear/android/build.gradle
+/modules/relayid-wear/android/build/
+/modules/relayid-wear/android/.cxx/
+/modules/relayid-wear/android/.gradle/
 dist/
 *.log

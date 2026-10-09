@@ -84,7 +84,7 @@ try {
     $env:ANDROID_SDK_ROOT = $env:ANDROID_HOME
     Push-Location (Join-Path $BuildRoot 'android')
     try {
-        Invoke-Checked '.\gradlew.bat' @('assembleRelease', '--console', 'plain', '--warning-mode', 'none', '-PreactNativeArchitectures=arm64-v8a')
+        Invoke-Checked '.\gradlew.bat' @('assembleRelease', '--no-daemon', '--console', 'plain', '--warning-mode', 'none')
     }
     finally {
         Pop-Location
@@ -99,11 +99,11 @@ Write-Output "APK=$apk"
 
 if ($Install) {
     if (-not $Serial) {
-        $Serial = adb devices | Select-String '\sdevice$' | ForEach-Object { ($_ -split '\s+')[0] } |
-            Where-Object { $_ -notlike 'emulator-*' } | Select-Object -First 1
+        $Serial = adb devices | Select-String '^\S+\s+device$' | ForEach-Object { ($_ -split '\s+')[0] } |
+            Select-Object -First 1
     }
     if (-not $Serial) {
-        throw 'No physical Android device was found. Pass -Serial explicitly or connect a device.'
+        throw 'No authorized Android device was found. Pass -Serial explicitly or connect a device or emulator.'
     }
 
     Invoke-Checked 'adb' @('-s', $Serial, 'install', '--user', '0', '-r', $apk)

@@ -2,6 +2,7 @@
     "expo": {
         "name": "RelayId",
         "slug": "relayid",
+        "version": "1.0.0",
         "icon": "./assets/relayid.png",
         "orientation": "portrait",
         "scheme": "relayid",
@@ -14,6 +15,7 @@
         },
         "android": {
             "package": "com.relayid.app",
+            "versionCode": 1,
             "softwareKeyboardLayoutMode": "resize",
             "adaptiveIcon": {
                 "foregroundImage": "./assets/relayid.png",
@@ -24,7 +26,8 @@
         "plugins": [
             ["expo-camera", { "cameraPermission": "RelayId uses the camera to scan Relay login codes." }],
             "expo-secure-store",
-            "@sbaiahmed1/react-native-biometrics"
+            "@sbaiahmed1/react-native-biometrics",
+            "./plugins/withRelayAndroidSigning"
         ]
     }
 }

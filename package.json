@@ -15,11 +15,18 @@
         "doctor": "pnpm dlx expo-doctor@latest",
         "verify": "pnpm typecheck && pnpm test"
     },
+    "pnpm": {
+        "overrides": {
+            "uuid@<11.1.1": ">=11.1.1",
+            "write-file-atomic": "8.0.0"
+        }
+    },
     "dependencies": {
         "@sbaiahmed1/react-native-biometrics": "^0.16.1",
         "asn1js": "^3.0.10",
         "expo": "~57.0.27",
         "expo-camera": "~57.0.6",
+        "expo-application": "~7.0.2",
         "expo-device": "~57.0.2",
         "expo-linking": "~57.0.12",
         "expo-secure-store": "~57.0.4",
