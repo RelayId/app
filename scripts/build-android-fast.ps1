@@ -84,7 +84,7 @@ try {
     $env:ANDROID_SDK_ROOT = $env:ANDROID_HOME
     Push-Location (Join-Path $BuildRoot 'android')
     try {
-        Invoke-Checked '.\gradlew.bat' @('assembleRelease', '--no-daemon', '--console', 'plain', '--warning-mode', 'none')
+        Invoke-Checked '.\gradlew.bat' @('assembleRelease', '--no-daemon', '--console', 'plain', '--warning-mode', 'none', '--max-workers=2', '-PreactNativeArchitectures=arm64-v8a')
     }
     finally {
         Pop-Location

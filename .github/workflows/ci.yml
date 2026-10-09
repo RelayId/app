@@ -85,6 +85,9 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
         with:
@@ -136,7 +139,7 @@ jobs:
           NODE_ENV: production
           EXPO_PUBLIC_APP_HASH: ${{ github.sha }}
           CXXFLAGS: -Wno-deprecated-declarations -Wno-overloaded-virtual
-        run: ./gradlew assembleRelease --no-daemon --stacktrace
+        run: ./gradlew assembleRelease --no-daemon --stacktrace --max-workers=2 -PreactNativeArchitectures=arm64-v8a
 
       - name: Name release APK
         run: cp android/app/build/outputs/apk/release/app-release.apk relayid-android.apk
