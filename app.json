@@ -3,7 +3,7 @@
         "name": "RelayId",
         "slug": "relayid",
         "version": "1.0.0",
-        "icon": "./assets/relayid-padded.png",
+        "icon": "./assets/relayid.png",
         "orientation": "portrait",
         "scheme": "relayid",
         "ios": {
@@ -18,7 +18,7 @@
             "versionCode": 1,
             "softwareKeyboardLayoutMode": "resize",
             "adaptiveIcon": {
-                "foregroundImage": "./assets/relayid-padded.png",
+                "foregroundImage": "./assets/relayid.png",
                 "backgroundColor": "#ffffff"
             },
             "permissions": ["android.permission.CAMERA"]
