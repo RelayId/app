@@ -25,8 +25,8 @@
         "@sbaiahmed1/react-native-biometrics": "^0.16.1",
         "asn1js": "^3.0.10",
         "expo": "~57.0.27",
-        "expo-camera": "~57.0.6",
         "expo-application": "~7.0.2",
+        "expo-camera": "~57.0.6",
         "expo-device": "~57.0.2",
         "expo-linking": "~57.0.12",
         "expo-secure-store": "~57.0.4",
@@ -36,7 +36,7 @@
         "react-native": "0.86.3",
         "react-native-nitro-modules": "^0.37.1",
         "react-native-quick-base64": "^3.0.1",
-        "react-native-quick-crypto": "^1.1.7",
+        "react-native-quick-crypto": "^1.1.8",
         "react-native-safe-area-context": "~5.7.0",
         "react-native-svg": "15.15.4",
         "relayid-wear": "workspace:*"
