@@ -14,23 +14,24 @@ module.exports = function withRelayAndroidSigning(config) {
             keyPassword: process.env.RELAYID_ANDROID_KEY_PASSWORD,
         };
 
-        if (Object.values(values).some((value) => !value)) {
+        const signingConfigured = Object.values(values).every((value) => value);
+        if (!signingConfigured) {
             if (required) {
                 throw new Error('RelayId release signing requires the Android keystore environment variables.');
             }
+
+            mod.modResults.contents = mod.modResults.contents
+                .replace(/    signingConfigs \{[\s\S]*?    \}\n    buildTypes \{/m, '    signingConfigs {\n        debug {\n            storeFile file(\'debug.keystore\')\n            storePassword \'android\'\n            keyAlias \'androiddebugkey\'\n            keyPassword \'android\'\n        }\n    }\n    buildTypes {')
+                .replace(/            signingConfig signingConfigs\.release\n/, '');
             return mod;
         }
 
         const signingConfig = `        release {\n            storeFile file("${quoteGroovy(values.path)}")\n            storePassword "${quoteGroovy(values.storePassword)}"\n            keyAlias "${quoteGroovy(values.alias)}"\n            keyPassword "${quoteGroovy(values.keyPassword)}"\n        }\n`;
-        if (!mod.modResults.contents.includes('storeFile file("')) {
-            mod.modResults.contents = mod.modResults.contents.replace(
-                '    signingConfigs {\n',
-                `    signingConfigs {\n${signingConfig}`,
-            );
-        }
+        mod.modResults.contents = mod.modResults.contents
+            .replace(/    signingConfigs \{[\s\S]*?    \}\n    buildTypes \{/m, `    signingConfigs {\n${signingConfig}    }\n    buildTypes {`);
         mod.modResults.contents = mod.modResults.contents.replace(
-            'signingConfig signingConfigs.debug\n            def enableShrinkResources',
-            'signingConfig signingConfigs.release\n            def enableShrinkResources',
+            '        release {\n            def enableShrinkResources',
+            '        release {\n            signingConfig signingConfigs.release\n            def enableShrinkResources',
         );
         return mod;
     });

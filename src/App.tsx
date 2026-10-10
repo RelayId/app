@@ -18,6 +18,7 @@ import { Approve } from './screens/Approve';
 import { getProviders } from './relay/api';
 import { registerWatchCapability } from './relay/api';
 import { publishRelayState } from './relay/wear';
+import { setWatchCredentials } from 'relayid-wear';
 import { StyleSheet } from 'react-native';
 import { Enroll } from './screens/Enroll';
 import { StatusBar } from 'react-native';
@@ -37,7 +38,7 @@ import { useState } from 'react';
 import { useRef } from 'react';
 import { UpdatePrompt } from './components/UpdatePrompt';
 import { checkForUpdates, type AvailableUpdate } from './relay/updates';
-import { getConnectedWatchCount } from './relay/wear';
+import { getWatchStatus } from 'relayid-wear';
 import { WearInstallPrompt } from './components/WearInstallPrompt';
 import type { UpdateArtifact } from './relay/updates';
 
@@ -87,6 +88,11 @@ export function AppContent() {
     const reconcilingAccounts = useRef(false);
     const watchTokens = useRef(new Map<string, string>());
     const unlockedRef = useRef(false);
+    const appActiveRef = useRef(true);
+    const unlockRunRef = useRef(0);
+    const initialUnlockRequestedRef = useRef(false);
+    const authInFlightRef = useRef(false);
+    const wasBackgroundedRef = useRef(false);
     const screenRef = useRef(screen);
     const deviceName = Device.deviceName || Device.modelName || 'Relay client';
 
@@ -96,9 +102,7 @@ export function AppContent() {
             void checkForUpdates()
                 .then(async (result) => {
                     if (active && result.app) setAvailableUpdate(result.app);
-                    if (!active || !result.watch) return;
-                    const connectedWatches = await getConnectedWatchCount();
-                    if (active && connectedWatches > 0) setWatchArtifact(result.watch);
+                    if (!active || !result.app) return;
                 })
                 .catch(() => {
                     // Update availability is non-critical and must never block the Relay client.
@@ -140,7 +144,10 @@ export function AppContent() {
                 }
             }),
         ).then(() => {
-            if (active) publishRelayState(accounts, selectedAccount, undefined, undefined, watchTokens.current);
+            if (active) {
+                setWatchCredentials(Object.fromEntries(watchTokens.current));
+                publishRelayState(accounts, selectedAccount);
+            }
         });
 
         return () => {
@@ -157,17 +164,21 @@ export function AppContent() {
     }, [screen]);
 
     useEffect(() => {
-        if (!loaded || accounts.length === 0 || unlocked) return;
+        if (
+            !appActiveRef.current ||
+            !loaded ||
+            accounts.length === 0 ||
+            unlocked ||
+            (unlockAttempt === 0 && initialUnlockRequestedRef.current)
+        )
+            return;
 
+        let active = true;
+        const run = ++unlockRunRef.current;
+        if (unlockAttempt === 0) initialUnlockRequestedRef.current = true;
+        authInFlightRef.current = true;
         setUnlocking(true);
         setUnlockError(false);
-        let active = true;
-        const timeout = setTimeout(() => {
-            if (!active) return;
-
-            setUnlocking(false);
-            setUnlockError(true);
-        }, 15000);
 
         void authenticateWithOptions({
             title: 'Unlock RelayId',
@@ -177,32 +188,50 @@ export function AppContent() {
             cancelLabel: 'Cancel',
         })
             .then((result) => {
-                if (!active) return;
+                if (!active || !appActiveRef.current || run !== unlockRunRef.current) return;
 
                 if (result.success) setUnlocked(true);
                 else setUnlockError(true);
             })
             .catch(() => {
-                if (active) setUnlockError(true);
+                if (active && appActiveRef.current && run === unlockRunRef.current) setUnlockError(true);
             })
             .finally(() => {
-                clearTimeout(timeout);
-                if (active) setUnlocking(false);
+                authInFlightRef.current = false;
+                if (active && run === unlockRunRef.current) setUnlocking(false);
             });
 
         return () => {
             active = false;
-            clearTimeout(timeout);
+            unlockRunRef.current += 1;
         };
     }, [accounts.length, loaded, unlockAttempt, unlocked]);
 
     useEffect(() => {
         const subscription = AppState.addEventListener('change', (state) => {
             if (state === 'active') {
+                const resumedFromBackground = wasBackgroundedRef.current;
+                appActiveRef.current = true;
+                wasBackgroundedRef.current = false;
+                setUnlockError(false);
                 setReconcileAttempt((value) => value + 1);
+                if (resumedFromBackground && accounts.length > 0 && !unlockedRef.current) {
+                    // Start a fresh native prompt for every real foreground session.
+                    // BiometricPrompt itself can emit transient lifecycle events while it is visible;
+                    // those are ignored below and must not consume this one-shot guard.
+                    initialUnlockRequestedRef.current = false;
+                    setUnlockAttempt((value) => value + 1);
+                }
                 return;
             }
 
+            // BiometricPrompt can briefly change AppState while its system UI is visible.
+            // Keep that prompt alive and do not treat its lifecycle as app backgrounding.
+            if (authInFlightRef.current) return;
+
+            appActiveRef.current = false;
+            wasBackgroundedRef.current = true;
+            unlockRunRef.current += 1;
             if (screenRef.current.name === 'scan') return;
 
             if (unlockedRef.current) {
@@ -476,6 +505,14 @@ export function AppContent() {
                                 selectAccount(enrolled.id);
                                 setScreen({ name: 'approve', id: screen.pendingLoginID });
                             } else {
+                                if (!screen.replacement) {
+                                    void Promise.all([checkForUpdates(), getWatchStatus()])
+                                        .then(([updates, status]) => {
+                                            if (updates.watch && status.connected > status.installed)
+                                                setWatchArtifact(updates.watch);
+                                        })
+                                        .catch(() => {});
+                                }
                                 home();
                             }
                         }}
@@ -557,9 +594,8 @@ export function AppContent() {
                 artifact={watchArtifact}
                 onLater={() => setWatchArtifact(undefined)}
                 onOpen={() => {
-                    const url = watchArtifact?.downloadUrl;
                     setWatchArtifact(undefined);
-                    if (url) void Linking.openURL(url);
+                    setScreen({ name: 'settings' });
                 }}
             />
         </View>

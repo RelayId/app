@@ -9,7 +9,6 @@ export type WearState = {
         email: string;
         host: string;
         origin: string;
-        watch_token?: string;
     }>;
     selected_id?: string;
     code?: string;
@@ -24,7 +23,6 @@ export function publishRelayState(
     selectedAccount?: Account,
     code?: string,
     expiresAt?: string,
-    watchTokens: Map<string, string> = new Map(),
 ): void {
     if (Platform.OS !== 'android') return;
 
@@ -39,7 +37,6 @@ export function publishRelayState(
             email: account.email,
             host: account.origin.replace(/^https?:\/\//u, '').replace(/\/$/u, ''),
             origin: account.origin,
-            watch_token: watchTokens.get(account.id),
         })),
         selected_id: selectedAccount?.id,
         code,

@@ -13,6 +13,12 @@ export type UpdateArtifact = {
     sha256?: string;
     minSupportedVersionCode: number;
     mandatory: boolean;
+    artifacts?: Array<{
+        format: 'apk' | 'aab';
+        architecture?: string;
+        artifactUrl: string;
+        sha256?: string;
+    }>;
 };
 
 export type RelayUpdateManifest = {
@@ -28,6 +34,11 @@ export type UpdateCheckResult = {
     app?: AvailableUpdate;
     watch?: UpdateArtifact;
 };
+
+export function getDirectApkUrl(artifact: UpdateArtifact): string {
+    const apk = artifact.artifacts?.find((item) => item.format === 'apk');
+    return apk?.artifactUrl || artifact.artifactUrl;
+}
 
 export async function checkForUpdates(): Promise<UpdateCheckResult> {
     if (Platform.OS !== 'android') return {};
@@ -57,6 +68,13 @@ function validateManifest(value: Partial<RelayUpdateManifest>): asserts value is
         if (!Number.isInteger(artifact.versionCode) || artifact.versionCode < 1) throw new Error('Invalid update version');
         if (!/^https:\/\/relayid\.github\.io\/manifest\//u.test(artifact.downloadUrl)) throw new Error('Untrusted update URL');
         if (!/^https:\/\/github\.com\/RelayId\//u.test(artifact.artifactUrl)) throw new Error('Untrusted update artifact URL');
+        if (artifact.artifacts !== undefined) {
+            for (const item of artifact.artifacts) {
+                if (item.format !== 'apk' && item.format !== 'aab') throw new Error('Invalid update artifact format');
+                if (!/^https:\/\/github\.com\/RelayId\//u.test(item.artifactUrl)) throw new Error('Untrusted update artifact URL');
+                if (item.sha256 !== undefined && item.sha256 !== '' && !/^[a-f0-9]{64}$/u.test(item.sha256)) throw new Error('Invalid update digest');
+            }
+        }
         if (artifact.sha256 !== undefined && artifact.sha256 !== '' && !/^[a-f0-9]{64}$/u.test(artifact.sha256)) throw new Error('Invalid update digest');
     }
 }

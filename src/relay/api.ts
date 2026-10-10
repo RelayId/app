@@ -163,5 +163,12 @@ export function generateCode(account: Account): Promise<{ code: string; expires_
 }
 
 export function registerWatchCapability(account: Account): Promise<WatchCapability> {
-    return signedRequest(account, 'POST', '/api/watch', jsonBytes({}), 'Enable Wear OS code access');
+    return request(new URL('/api/watch', account.origin), {
+        method: 'POST',
+        body: utf8Body(jsonBytes({})),
+        headers: {
+            'Content-Type': 'application/json',
+            Authorization: `RelayDevice ${account.credential}`,
+        },
+    });
 }
