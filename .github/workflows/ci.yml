@@ -133,33 +133,33 @@ jobs:
       - name: Make Gradle wrapper executable
         run: chmod +x android/gradlew
 
-      - name: Build release APK and AAB
+      - name: Build release APK variants and AAB
         working-directory: android
         env:
           NODE_ENV: production
           EXPO_PUBLIC_APP_HASH: ${{ github.sha }}
           CXXFLAGS: -Wno-deprecated-declarations -Wno-overloaded-virtual
-        run: ./gradlew assembleRelease bundleRelease --no-daemon --stacktrace --max-workers=2 -PreactNativeArchitectures=arm64-v8a
+        run: |
+          ./gradlew assembleRelease --no-daemon --stacktrace --max-workers=2 -PreactNativeArchitectures=arm64-v8a
+          cp app/build/outputs/apk/release/app-release.apk "$GITHUB_WORKSPACE/relayid-android-arm64-v8a.apk"
+          ./gradlew assembleRelease --no-daemon --stacktrace --max-workers=2 -PreactNativeArchitectures=armeabi-v7a
+          cp app/build/outputs/apk/release/app-release.apk "$GITHUB_WORKSPACE/relayid-android-armeabi-v7a.apk"
+          ./gradlew bundleRelease --no-daemon --stacktrace --max-workers=2
 
       - name: Name release APK and AAB
         shell: bash
         run: |
           set -euo pipefail
-          version_name="$(node -p "require('./app.json').expo.version")"
-          version_code="$(node -p "require('./app.json').expo.android.versionCode")"
-          base="relayid-android-v${version_name}-${version_code}-arm64"
-          cp android/app/build/outputs/apk/release/app-release.apk relayid-android.apk
-          cp android/app/build/outputs/apk/release/app-release.apk "${base}.apk"
-          cp android/app/build/outputs/bundle/release/app-release.aab "${base}.aab"
+          cp android/app/build/outputs/bundle/release/app-release.aab relayid-android.aab
 
       - name: Upload Android release artifacts
         uses: actions/upload-artifact@v5
         with:
           name: relayid-android-release
           path: |
-            relayid-android.apk
-            relayid-android-v*.apk
-            relayid-android-v*.aab
+            relayid-android.aab
+            relayid-android-arm64-v8a.apk
+            relayid-android-armeabi-v7a.apk
           if-no-files-found: error
 
       - name: Publish rolling prerelease
@@ -173,11 +173,10 @@ jobs:
           else
             gh release create latest --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title 'Latest RelayId Android' --prerelease --latest
           fi
-          gh release delete-asset latest relayid-android.apk --repo "$GITHUB_REPOSITORY" --yes >/dev/null 2>&1 || true
-          for asset in relayid-android.apk relayid-android-v*.apk relayid-android-v*.aab; do
-            gh release delete-asset latest "$(basename "$asset")" --repo "$GITHUB_REPOSITORY" --yes >/dev/null 2>&1 || true
-          done
-          gh release upload latest relayid-android.apk relayid-android-v*.apk relayid-android-v*.aab --repo "$GITHUB_REPOSITORY" --clobber
+          while IFS= read -r asset; do
+            gh release delete-asset latest "$asset" --repo "$GITHUB_REPOSITORY" --yes >/dev/null 2>&1 || true
+          done < <(gh release view latest --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' | grep '^relayid-android' || true)
+          gh release upload latest relayid-android.aab relayid-android-arm64-v8a.apk relayid-android-armeabi-v7a.apk --repo "$GITHUB_REPOSITORY" --clobber
 
       - name: Publish update manifest metadata
         if: github.event_name != 'pull_request' && env.MANIFEST_DISPATCH_TOKEN != ''
@@ -188,17 +187,18 @@ jobs:
           set -euo pipefail
           version_name="$(node -p "require('./app.json').expo.version")"
           version_code="$(node -p "require('./app.json').expo.android.versionCode")"
-          digest="$(sha256sum relayid-android.apk | cut -d ' ' -f1)"
-          aab_digest="$(sha256sum relayid-android-v${version_name}-${version_code}-arm64.aab | cut -d ' ' -f1)"
-          aab_url="https://github.com/RelayId/app/releases/download/latest/relayid-android-v${version_name}-${version_code}-arm64.aab"
+          arm64_digest="$(sha256sum relayid-android-arm64-v8a.apk | cut -d ' ' -f1)"
+          v7a_digest="$(sha256sum relayid-android-armeabi-v7a.apk | cut -d ' ' -f1)"
+          aab_digest="$(sha256sum relayid-android.aab | cut -d ' ' -f1)"
           jq -n \
             --arg package 'com.relayid.app' \
             --arg versionName "$version_name" \
             --argjson versionCode "$version_code" \
             --arg downloadUrl 'https://relayid.github.io/manifest/android/' \
-            --arg artifactUrl 'https://github.com/RelayId/app/releases/download/latest/relayid-android.apk' \
-            --arg sha256 "$digest" \
-            --arg aabUrl "$aab_url" \
+            --arg artifactUrl 'https://github.com/RelayId/app/releases/download/latest/relayid-android-arm64-v8a.apk' \
+            --arg arm64Sha256 "$arm64_digest" \
+            --arg v7aSha256 "$v7a_digest" \
+            --arg aabUrl 'https://github.com/RelayId/app/releases/download/latest/relayid-android.aab' \
             --arg aabSha256 "$aab_digest" \
-            '{event_type:"publish-android",client_payload:{package:$package,versionName:$versionName,versionCode:$versionCode,downloadUrl:$downloadUrl,artifactUrl:$artifactUrl,sha256:$sha256,artifacts:[{format:"apk",architecture:"arm64-v8a",artifactUrl:$artifactUrl,sha256:$sha256},{format:"aab",architecture:"arm64-v8a",artifactUrl:$aabUrl,sha256:$aabSha256}]}}' |
+            '{event_type:"publish-android",client_payload:{package:$package,versionName:$versionName,versionCode:$versionCode,downloadUrl:$downloadUrl,artifactUrl:$artifactUrl,sha256:$arm64Sha256,artifacts:[{format:"apk",architecture:"arm64-v8a",artifactUrl:$artifactUrl,sha256:$arm64Sha256},{format:"apk",architecture:"armeabi-v7a",artifactUrl:"https://github.com/RelayId/app/releases/download/latest/relayid-android-armeabi-v7a.apk",sha256:$v7aSha256},{format:"aab",artifactUrl:$aabUrl,sha256:$aabSha256}]}}' |
             gh api repos/RelayId/manifest/dispatches --input -
