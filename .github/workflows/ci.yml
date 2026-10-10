@@ -140,17 +140,16 @@ jobs:
           EXPO_PUBLIC_APP_HASH: ${{ github.sha }}
           CXXFLAGS: -Wno-deprecated-declarations -Wno-overloaded-virtual
         run: |
-          ./gradlew assembleRelease --no-daemon --stacktrace --max-workers=2 -PreactNativeArchitectures=arm64-v8a
+          ./gradlew assembleRelease bundleRelease --no-daemon --stacktrace --max-workers=2 -PreactNativeArchitectures=arm64-v8a
           cp app/build/outputs/apk/release/app-release.apk "$GITHUB_WORKSPACE/relayid-android-arm64-v8a.apk"
+          cp app/build/outputs/bundle/release/app-release.aab "$GITHUB_WORKSPACE/relayid-android.aab"
           ./gradlew assembleRelease --no-daemon --stacktrace --max-workers=2 -PreactNativeArchitectures=armeabi-v7a
           cp app/build/outputs/apk/release/app-release.apk "$GITHUB_WORKSPACE/relayid-android-armeabi-v7a.apk"
-          ./gradlew bundleRelease --no-daemon --stacktrace --max-workers=2
 
       - name: Name release APK and AAB
         shell: bash
         run: |
           set -euo pipefail
-          cp android/app/build/outputs/bundle/release/app-release.aab relayid-android.aab
 
       - name: Upload Android release artifacts
         uses: actions/upload-artifact@v7
