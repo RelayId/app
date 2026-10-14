@@ -233,7 +233,24 @@ jobs:
           CXXFLAGS: -Wno-deprecated-declarations -Wno-overloaded-virtual
         run: |
           set -euo pipefail
-          ./gradlew :app:assembleRelease :app:bundleRelease --no-daemon --stacktrace --max-workers=4 --build-cache -PreactNativeArchitectures=arm64-v8a,armeabi-v7a -Pandroid.enableMinifyInReleaseBuilds=true -Pandroid.enableShrinkResourcesInReleaseBuilds=true
+          ./gradlew :app:assembleRelease --no-daemon --stacktrace --max-workers=4 --build-cache -PreactNativeArchitectures=arm64-v8a,armeabi-v7a -Pandroid.enableMinifyInReleaseBuilds=true -Pandroid.enableShrinkResourcesInReleaseBuilds=true
+          node <<'NODE'
+          const fs = require('node:fs');
+          const path = 'app/build.gradle';
+          let source = fs.readFileSync(path, 'utf8');
+          if (!/\bsplits\s*\{\s*abi\s*\{/m.test(source)) {
+            throw new Error('Generated Android Gradle file has no ABI split block to remove.');
+          }
+          const bundleSource = source.replace(
+            /\n\s*splits\s*\{\s*abi\s*\{[\s\S]*?\n\s*\}\s*\}\s*(?=\n\s*\/\/|\n\s*defaultConfig|\n\s*buildTypes)/,
+            '\n',
+          );
+          if (bundleSource === source) {
+            throw new Error('Unable to remove ABI split block before building the AAB.');
+          }
+          fs.writeFileSync(path, bundleSource);
+          NODE
+          ./gradlew :app:bundleRelease --no-daemon --stacktrace --max-workers=4 --build-cache -PreactNativeArchitectures=arm64-v8a,armeabi-v7a -Pandroid.enableMinifyInReleaseBuilds=true -Pandroid.enableShrinkResourcesInReleaseBuilds=true
           test -f app/build/outputs/apk/release/app-arm64-v8a-release.apk
           test -f app/build/outputs/apk/release/app-armeabi-v7a-release.apk
           test -f app/build/outputs/bundle/release/app-release.aab
