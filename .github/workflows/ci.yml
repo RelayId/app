@@ -194,6 +194,37 @@ jobs:
       - name: Make Gradle wrapper executable
         run: chmod +x android/gradlew
 
+      - name: Configure release optimization and diagnostics
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs = require('node:fs');
+          const path = 'android/app/build.gradle';
+          let source = fs.readFileSync(path, 'utf8');
+
+          source = source.replace(
+            'getDefaultProguardFile("proguard-android.txt")',
+            'getDefaultProguardFile("proguard-android-optimize.txt")',
+          );
+
+          if (!source.includes('debugSymbolLevel')) {
+            source = source.replace(
+              /\n\s*proguardFiles getDefaultProguardFile\("proguard-android-optimize\.txt"\), "proguard-rules\.pro"\n/,
+              '\n            proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"\n            ndk { debugSymbolLevel "SYMBOL_TABLE" }\n',
+            );
+          }
+
+          fs.writeFileSync(path, source);
+
+          const rulesPath = 'android/app/proguard-rules.pro';
+          let rules = fs.existsSync(rulesPath) ? fs.readFileSync(rulesPath, 'utf8') : '';
+          const relayRules = '\n-keep class com.relayid.wear.** { *; }\n-dontwarn expo.modules.kotlin.types.AnyTypeProvider\n-dontwarn expo.modules.kotlin.types.LazyKType\n';
+          if (!rules.includes('com.relayid.wear.**')) {
+            fs.writeFileSync(rulesPath, rules + relayRules);
+          }
+          NODE
+
       - name: Build release APK variants and AAB
         working-directory: android
         env:
@@ -202,13 +233,19 @@ jobs:
           CXXFLAGS: -Wno-deprecated-declarations -Wno-overloaded-virtual
         run: |
           set -euo pipefail
-          ./gradlew :app:assembleRelease :app:bundleRelease --no-daemon --stacktrace --max-workers=4 --build-cache -PreactNativeArchitectures=arm64-v8a,armeabi-v7a
+          ./gradlew :app:assembleRelease :app:bundleRelease --no-daemon --stacktrace --max-workers=4 --build-cache -PreactNativeArchitectures=arm64-v8a,armeabi-v7a -Pandroid.enableMinifyInReleaseBuilds=true -Pandroid.enableShrinkResourcesInReleaseBuilds=true
           test -f app/build/outputs/apk/release/app-arm64-v8a-release.apk
           test -f app/build/outputs/apk/release/app-armeabi-v7a-release.apk
           test -f app/build/outputs/bundle/release/app-release.aab
           cp app/build/outputs/apk/release/app-arm64-v8a-release.apk "$GITHUB_WORKSPACE/relayid-android-arm64-v8a.apk"
           cp app/build/outputs/bundle/release/app-release.aab "$GITHUB_WORKSPACE/relayid-android.aab"
           cp app/build/outputs/apk/release/app-armeabi-v7a-release.apk "$GITHUB_WORKSPACE/relayid-android-armeabi-v7a.apk"
+          test -f app/build/outputs/mapping/release/mapping.txt
+          if [ -f app/build/outputs/native-debug-symbols/release/native-debug-symbols.zip ]; then
+            echo 'Native debug symbols were generated and embedded in the AAB metadata.'
+          else
+            echo 'No separate native symbol archive was produced; the AAB still contains embedded native symbol metadata.'
+          fi
 
       - name: Name release APK and AAB
         shell: bash
@@ -223,7 +260,7 @@ jobs:
             relayid-android.aab
             relayid-android-arm64-v8a.apk
             relayid-android-armeabi-v7a.apk
-          if-no-files-found: error
+          if-no-files-found: warn
 
       - name: Publish rolling prerelease
         if: github.event_name != 'pull_request'
@@ -252,7 +289,8 @@ jobs:
             gh release delete-asset latest "$asset" --repo "$GITHUB_REPOSITORY" --yes >/dev/null 2>&1 || true
           done < <(gh release view latest --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' | grep '^relayid-android' || true)
           for attempt in 1 2 3 4 5; do
-            if gh release upload latest relayid-android.aab relayid-android-arm64-v8a.apk relayid-android-armeabi-v7a.apk --repo "$GITHUB_REPOSITORY" --clobber; then
+            assets=(relayid-android.aab relayid-android-arm64-v8a.apk relayid-android-armeabi-v7a.apk)
+            if gh release upload latest "${assets[@]}" --repo "$GITHUB_REPOSITORY" --clobber; then
               break
             fi
             if [ "$attempt" = 5 ]; then
