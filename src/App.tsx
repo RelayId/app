@@ -384,8 +384,10 @@ export function AppContent() {
         setScreen({ name: 'home' });
     }
 
-    async function openProtectedAction(action: 'scan' | 'code'): Promise<void> {
-        if (!selectedAccount) {
+    function openProtectedAction(action: 'scan' | 'code'): void {
+        const account = selectedAccount;
+
+        if (!account) {
             setFeedback({
                 title: 'Add a Relay first',
                 message:
@@ -396,7 +398,7 @@ export function AppContent() {
             return;
         }
 
-        if (new Date(selectedAccount.credentialExpiresAt).getTime() <= Date.now()) {
+        if (new Date(account.credentialExpiresAt).getTime() <= Date.now()) {
             setFeedback({
                 title: 'Credential expired',
                 message:
@@ -407,34 +409,35 @@ export function AppContent() {
             return;
         }
 
-        try {
-            const discovery = await getProviders(selectedAccount.origin);
-            const provider = discovery.providers.find((candidate) => candidate.id === selectedAccount.provider);
-            if (!provider || provider.enabled === false) {
-                try {
-                    await removeLocalAccount(selectedAccount);
-                    await reloadAccounts();
-                    setFeedback({
-                        title: 'Relay removed',
-                        message:
-                            'Its linked provider is no longer available, so the local account and keys were removed.',
-                    });
-                } catch {
-                    setFeedback({
-                        title: 'Relay cleanup incomplete',
-                        message:
-                            'The linked provider is no longer available, but secure local cleanup failed. Try again from Settings.',
-                    });
-                }
-                return;
-            }
-        } catch (error) {
-            setFeedback({ title: 'Could not check Relay', message: userError(error, 'Try again.') });
-            return;
-        }
-
         if (action === 'scan') setScreen({ name: 'scan' });
         else setScreen({ name: 'code' });
+
+        void (async () => {
+            try {
+                const discovery = await getProviders(account.origin);
+                const provider = discovery.providers.find((candidate) => candidate.id === account.provider);
+                if (!provider || provider.enabled === false) {
+                    try {
+                        await removeLocalAccount(account);
+                        await reloadAccounts();
+                        setScreen({ name: 'home' });
+                        setFeedback({
+                            title: 'Relay removed',
+                            message:
+                                'Its linked provider is no longer available, so the local account and keys were removed.',
+                        });
+                    } catch {
+                        setFeedback({
+                            title: 'Relay cleanup incomplete',
+                            message:
+                                'The linked provider is no longer available, but secure local cleanup failed. Try again from Settings.',
+                        });
+                    }
+                }
+            } catch (error) {
+                setFeedback({ title: 'Could not check Relay', message: userError(error, 'Try again.') });
+            }
+        })();
     }
 
     if (loaded && accounts.length > 0 && !unlocked && screen.name !== 'code') {
