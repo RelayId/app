@@ -2,14 +2,12 @@ import { readWatchCapability, saveAccount, saveWatchCapability } from './relay/s
 import { authenticateWithOptions } from '@sbaiahmed1/react-native-biometrics';
 import { checkForUpdates, type AvailableUpdate } from './relay/updates';
 import type { MobileCodeCapability, Provider } from './relay/models';
-import { WearInstallPrompt } from './components/WearInstallPrompt';
 import { AnimatedPressable } from './components/AnimatedPressable';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { FeedbackModal } from './components/FeedbackModal';
 import { removeLocalAccount } from './relay/keyLifecycle';
 import { UpdatePrompt } from './components/UpdatePrompt';
-import type { UpdateArtifact } from './relay/updates';
 import { registerWatchCapability } from './relay/api';
 import { parseRelayConfigQR } from './relay/origin';
 import { setWatchCredentials } from 'relayid-wear';
@@ -18,7 +16,6 @@ import { useAccounts } from './hooks/useAccounts';
 import { publishRelayState } from './relay/wear';
 import type { Account } from './relay/models';
 import { Settings } from './screens/Settings';
-import { getWatchStatus } from 'relayid-wear';
 import { createCommonStyles } from './styles';
 import { AddRelay } from './screens/AddRelay';
 import { useTheme } from './hooks/useTheme';
@@ -83,7 +80,6 @@ export function AppContent() {
     const [unlockAttempt, setUnlockAttempt] = useState(0);
     const [reconcileAttempt, setReconcileAttempt] = useState(0);
     const [availableUpdate, setAvailableUpdate] = useState<AvailableUpdate>();
-    const [watchArtifact, setWatchArtifact] = useState<UpdateArtifact>();
     const [pendingLoginLink, setPendingLoginLink] = useState<{ origin: string; id: string }>();
     const reconcilingAccounts = useRef(false);
     const watchTokens = useRef(new Map<string, string>());
@@ -524,14 +520,6 @@ export function AppContent() {
                                 selectAccount(enrolled.id);
                                 setScreen({ name: 'approve', id: screen.pendingLoginID });
                             } else {
-                                if (!screen.replacement) {
-                                    void Promise.all([checkForUpdates(), getWatchStatus()])
-                                        .then(([updates, status]) => {
-                                            if (updates.watch && status.connected > status.installed)
-                                                setWatchArtifact(updates.watch);
-                                        })
-                                        .catch(() => {});
-                                }
                                 home();
                             }
                         }}
@@ -607,14 +595,6 @@ export function AppContent() {
                     const url = availableUpdate?.downloadUrl;
                     setAvailableUpdate(undefined);
                     if (url) void Linking.openURL(url);
-                }}
-            />
-            <WearInstallPrompt
-                artifact={watchArtifact}
-                onLater={() => setWatchArtifact(undefined)}
-                onOpen={() => {
-                    setWatchArtifact(undefined);
-                    setScreen({ name: 'settings' });
                 }}
             />
         </View>

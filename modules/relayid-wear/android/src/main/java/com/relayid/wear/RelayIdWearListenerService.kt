@@ -1,63 +1,18 @@
 package com.relayid.wear
 
 import android.content.Context
-import android.util.Log
-import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
 import java.time.Instant
 import kotlin.concurrent.thread
 
-import com.google.android.gms.tasks.Tasks
-import com.google.android.gms.wearable.DataEvent
-import com.google.android.gms.wearable.DataEventBuffer
-import com.google.android.gms.wearable.DataMapItem
 import com.google.android.gms.wearable.MessageEvent
-import com.google.android.gms.wearable.PutDataMapRequest
 import com.google.android.gms.wearable.Wearable
 import com.google.android.gms.wearable.WearableListenerService
 import org.json.JSONObject
 
 class RelayIdWearListenerService : WearableListenerService() {
-    override fun onDataChanged(events: DataEventBuffer) {
-        events.use { buffer ->
-            buffer.forEach { event ->
-                if (event.type != DataEvent.TYPE_CHANGED || event.dataItem.uri.path != RelayIdWearModule.INSTALL_PATH) return@forEach
-                val asset = DataMapItem.fromDataItem(event.dataItem).dataMap.getAsset(RelayIdWearModule.APK_KEY)
-                    ?: return@forEach
-                thread(name = "relayid-watch-install") { receiveAndInstall(asset) }
-            }
-        }
-    }
-
-    private fun receiveAndInstall(asset: com.google.android.gms.wearable.Asset) {
-        runCatching {
-            val apk = File(cacheDir, "relayid-watch.apk")
-            val response = Tasks.await(Wearable.getDataClient(this).getFdForAsset(asset))
-            response.getInputStream().use { input ->
-                apk.outputStream().use { output -> input.copyTo(output) }
-            }
-            val uri = androidx.core.content.FileProvider.getUriForFile(
-                this,
-                "com.relayid.app.relayid-files",
-                apk,
-            )
-            startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
-                setDataAndType(uri, "application/vnd.android.package-archive")
-                addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-                addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            })
-        }.onFailure { error -> Log.e("RelayIdWear", "watch installation failed", error) }
-    }
-
     override fun onMessageReceived(event: MessageEvent) {
-        if (event.path == RelayIdWearModule.INSTALL_STATUS_PATH) {
-            getSharedPreferences(RelayIdWearModule.PREFERENCES, Context.MODE_PRIVATE)
-                .edit()
-                .putString(RelayIdWearModule.INSTALL_STATUS_PREFIX + event.sourceNodeId, event.data.toString(Charsets.UTF_8))
-                .apply()
-            return
-        }
         if (event.path != RelayIdWearModule.REQUEST_PATH) return
 
         val relayId = event.data.toString(Charsets.UTF_8)
@@ -149,13 +104,4 @@ class RelayIdWearListenerService : WearableListenerService() {
         )
     }
 
-    private fun publishState(payload: String) {
-        getSharedPreferences(RelayIdWearModule.PREFERENCES, Context.MODE_PRIVATE)
-            .edit()
-            .putString(RelayIdWearModule.STATE_KEY, payload)
-            .apply()
-        val request = PutDataMapRequest.create(RelayIdWearModule.STATE_PATH)
-        request.dataMap.putString(RelayIdWearModule.PAYLOAD_KEY, payload)
-        Wearable.getDataClient(this).putDataItem(request.asPutDataRequest().setUrgent())
-    }
 }

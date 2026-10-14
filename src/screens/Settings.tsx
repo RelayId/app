@@ -1,6 +1,5 @@
-import { getConnectedWatches, getWatchInstallerStatus, installWatchArtifact, type WatchDevice } from 'relayid-wear';
+import { getWatchStatus } from 'relayid-wear';
 import { authenticateWithOptions } from '@sbaiahmed1/react-native-biometrics';
-import { checkForUpdates, getDirectApkUrl } from '../relay/updates';
 import { AnimatedPressable } from '../components/AnimatedPressable';
 import { removeAllLocalAccounts } from '../relay/keyLifecycle';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -9,7 +8,6 @@ import { removeLocalAccount } from '../relay/keyLifecycle';
 import { RotateCcw } from 'lucide-react-native';
 import type { Account } from '../relay/models';
 import { createCommonStyles } from '../styles';
-import { getWatchStatus } from 'relayid-wear';
 import { useTheme } from '../hooks/useTheme';
 import { Trash2 } from 'lucide-react-native';
 import { StyleSheet } from 'react-native';
@@ -17,6 +15,7 @@ import { ScrollView } from 'react-native';
 import { userError } from '../uiErrors';
 import { View } from 'react-native';
 import { Text } from 'react-native';
+import { Linking } from 'react-native';
 import { useEffect } from 'react';
 import { useState } from 'react';
 
@@ -35,10 +34,7 @@ export function Settings({ accounts, onBack, onDeleted, onReenroll }: SettingsPr
     const [deleteAllPending, setDeleteAllPending] = useState(false);
     const [watchStatus, setWatchStatus] = useState<{ connected: number; installed: number }>();
     const [watchStatusLoading, setWatchStatusLoading] = useState(true);
-    const [watchInstalling, setWatchInstalling] = useState(false);
     const [watchStatusError, setWatchStatusError] = useState<string>();
-    const [watchPickerVisible, setWatchPickerVisible] = useState(false);
-    const [watchChoices, setWatchChoices] = useState<WatchDevice[]>([]);
 
     async function refreshWatchStatus(): Promise<void> {
         setWatchStatusLoading(true);
@@ -52,49 +48,14 @@ export function Settings({ accounts, onBack, onDeleted, onReenroll }: SettingsPr
         }
     }
 
-    async function installWatch(targetNodeId: string): Promise<void> {
-        setWatchInstalling(true);
-        setWatchStatusError(undefined);
-        setFeedback({ title: 'Preparing Watch installer', message: 'Downloading and sending the Watch APK..' });
-        try {
-            const updates = await checkForUpdates();
-            if (!updates.watch) throw new Error('No Watch APK is available yet.');
-            await installWatchArtifact(getDirectApkUrl(updates.watch), targetNodeId);
-            setFeedback({ title: 'Watch installer ready', message: 'Tap the RelayId notification on the Watch to open the Android installer.' });
-            let installerReady = false;
-            for (let attempt = 0; attempt < 20; attempt += 1) {
-                await new Promise((resolve) => setTimeout(resolve, 250));
-                if ((await getWatchInstallerStatus(targetNodeId)) === 'ready') {
-                    installerReady = true;
-                    break;
-                }
-            }
-            setFeedback(
-                installerReady
-                    ? { title: 'Watch installer ready', message: 'Tap the RelayId notification on the Watch to open the installer.' }
-                    : { title: 'Watch installer sent', message: 'The Watch did not confirm opening the installer yet. Refresh Watch status and try again if it is not visible.' },
-            );
-        } catch (error) {
-            setFeedback({ title: 'Could not install Watch', message: userError(error, 'Try again.') });
-        } finally {
-            setWatchInstalling(false);
-        }
-    }
+    async function openPlayStore(): Promise<void> {
+        const marketUrl = 'market://details?id=com.relayid.app';
+        const webUrl = 'https://play.google.com/store/apps/details?id=com.relayid.app';
 
-    async function chooseWatch(): Promise<void> {
-        setWatchStatusError(undefined);
         try {
-            const watches = await getConnectedWatches();
-            if (watches.length === 0) throw new Error('No connected Wear OS watch.');
-            if (watches.length === 1) {
-                const [watch] = watches;
-                if (watch) void installWatch(watch.id);
-                return;
-            }
-            setWatchChoices(watches);
-            setWatchPickerVisible(true);
-        } catch (error) {
-            setWatchStatusError(userError(error, 'Could not find a connected Watch.'));
+            await Linking.openURL(marketUrl);
+        } catch {
+            await Linking.openURL(webUrl);
         }
     }
 
@@ -198,15 +159,14 @@ export function Settings({ accounts, onBack, onDeleted, onReenroll }: SettingsPr
                             ? 'Checking connected watches..'
                             : watchStatus?.connected
                               ? `${watchStatus.connected} connected ${watchStatus.connected === 1 ? 'watch' : 'watches'}; ${watchStatus.installed} ${watchStatus.installed === 1 ? 'has' : 'have'} RelayId installed.`
-                              : 'Connect awatch to install and manage RelayId Watch.'}
+                              : 'Connect a watch to use RelayId Watch.'}
                     </Text>
                     {watchStatusError ? <Text style={styles.errorText}>{watchStatusError}</Text> : null}
                     <AnimatedPressable
                         style={styles.secondary}
-                        onPress={() => void chooseWatch()}
-                        disabled={watchInstalling || !watchStatus?.connected}
+                        onPress={() => void openPlayStore()}
                     >
-                        <Text style={styles.secondaryText}>{watchInstalling ? 'Sending Watch installer..' : 'Install or update Watch'}</Text>
+                        <Text style={styles.secondaryText}>Get Watch from Google Play</Text>
                     </AnimatedPressable>
                     <AnimatedPressable style={styles.secondary} onPress={() => void refreshWatchStatus()}>
                         <Text style={styles.secondaryText}>{watchStatusLoading ? 'Refreshing Watch status..' : 'Refresh Watch status'}</Text>
@@ -224,21 +184,6 @@ export function Settings({ accounts, onBack, onDeleted, onReenroll }: SettingsPr
                     </AnimatedPressable>
                 </View>
             </ScrollView>
-            <FeedbackModal
-                visible={watchPickerVisible}
-                title="Choose a Watch"
-                message="Select which connected Wear OS watch should receive the installer."
-                actions={[
-                    ...watchChoices.map((watch) => ({
-                        label: `${watch.displayName || 'Wear OS watch'}${watch.nearby ? '' : ' (via phone)'}`,
-                        onPress: () => {
-                            setWatchPickerVisible(false);
-                            void installWatch(watch.id);
-                        },
-                    })),
-                    { label: 'Cancel', onPress: () => setWatchPickerVisible(false) },
-                ]}
-            />
             <FeedbackModal
                 visible={pendingDelete !== undefined}
                 title="Delete account?"
