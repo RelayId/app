@@ -113,7 +113,7 @@ export async function signedRequest<T>(
     path: string,
     body: Uint8Array,
     prompt = 'Approve Relay request',
-    requireAuthentication = true,
+    requireAuthentication = false,
 ): Promise<T> {
     const timestamp = Math.floor(Date.now() / 1000).toString();
     const nonce = encodeBase64Url(randomBytes(24));

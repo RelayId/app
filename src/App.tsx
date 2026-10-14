@@ -90,6 +90,7 @@ export function AppContent() {
     const unlockedRef = useRef(false);
     const appActiveRef = useRef(true);
     const unlockRunRef = useRef(0);
+    const initialUnlockRequestedRef = useRef(false);
     const authInFlightRef = useRef(false);
     const wasBackgroundedRef = useRef(false);
     const screenRef = useRef(screen);
@@ -168,13 +169,14 @@ export function AppContent() {
             !loaded ||
             accounts.length === 0 ||
             unlocked ||
-            unlockAttempt === 0
+            (unlockAttempt === 0 && initialUnlockRequestedRef.current)
         )
             return;
 
         let active = true;
         const run = ++unlockRunRef.current;
         authInFlightRef.current = true;
+        if (unlockAttempt === 0) initialUnlockRequestedRef.current = true;
         setUnlocking(true);
         setUnlockError(false);
 
@@ -213,10 +215,11 @@ export function AppContent() {
                 wasBackgroundedRef.current = false;
                 setUnlockError(false);
                 setReconcileAttempt((value) => value + 1);
-                if (resumedFromBackground && accounts.length > 0 && !unlockedRef.current && screenRef.current.name !== 'code') {
+                if (resumedFromBackground && accounts.length > 0 && !unlockedRef.current) {
                     // Start a fresh native prompt for every real foreground session.
                     // BiometricPrompt itself can emit transient lifecycle events while it is visible;
                     // those are ignored below and must not consume this one-shot guard.
+                    initialUnlockRequestedRef.current = false;
                     setUnlockAttempt((value) => value + 1);
                 }
                 return;
@@ -244,7 +247,7 @@ export function AppContent() {
 
     useEffect(() => {
         const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
-            if (!unlocked && accounts.length > 0 && screen.name !== 'code') return true;
+            if (!unlocked && accounts.length > 0) return true;
 
             switch (screen.name) {
                 case 'home':
@@ -440,7 +443,7 @@ export function AppContent() {
         })();
     }
 
-    if (loaded && accounts.length > 0 && !unlocked && screen.name !== 'code') {
+    if (loaded && accounts.length > 0 && !unlocked) {
         const common = createCommonStyles(theme);
 
         return (
@@ -460,12 +463,6 @@ export function AppContent() {
                     }}
                 >
                     <Text style={common.primaryText}>{unlocking ? 'Waiting for authentication..' : 'Unlock'}</Text>
-                </AnimatedPressable>
-                <AnimatedPressable
-                    style={[common.secondary, { marginTop: 12 }]}
-                    onPress={() => setScreen({ name: 'code' })}
-                >
-                    <Text style={common.secondaryText}>Generate a login code</Text>
                 </AnimatedPressable>
                 <AppHash />
             </SafeAreaView>

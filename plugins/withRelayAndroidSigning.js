@@ -28,10 +28,14 @@ module.exports = function withRelayAndroidSigning(config) {
 
         const signingConfig = `        release {\n            storeFile file("${quoteGroovy(values.path)}")\n            storePassword "${quoteGroovy(values.storePassword)}"\n            keyAlias "${quoteGroovy(values.alias)}"\n            keyPassword "${quoteGroovy(values.keyPassword)}"\n        }\n`;
         mod.modResults.contents = mod.modResults.contents
-            .replace(/    signingConfigs \{[\s\S]*?    \}\n    buildTypes \{/m, `    signingConfigs {\n${signingConfig}    }\n    buildTypes {`);
+            .replace(/    signingConfigs \{[\s\S]*?    \}\r?\n    buildTypes \{/m, `    signingConfigs {\n${signingConfig}    }\n    buildTypes {`);
         mod.modResults.contents = mod.modResults.contents.replace(
-            '        release {\n            def enableShrinkResources',
-            '        release {\n            signingConfig signingConfigs.release\n            def enableShrinkResources',
+            /(    buildTypes \{[\s\S]*?        )release \{\r?\n/,
+            '$1release {\n            signingConfig signingConfigs.release\n',
+        );
+        mod.modResults.contents = mod.modResults.contents.replace(
+            /(    buildTypes \{[\s\S]*?        release \{\r?\n[\s\S]*?)            signingConfig signingConfigs\.debug\r?\n/,
+            '$1',
         );
         return mod;
     });

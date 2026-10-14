@@ -146,7 +146,7 @@ export function Enroll({
             const verified = await waitForVerification(created.id, created.expires_at);
             const payload = new TextEncoder().encode(verified.signing_payload);
             const signatures = {
-                p256: await signP256(alias, payload, 'Complete Relay enrollment'),
+                p256: await signP256(alias, payload, 'Complete Relay enrollment', false),
                 mldsa65: await signMLDSA(seedKey, payload),
             };
             const completed = await completeEnrollment(origin, created.id, signatures);
