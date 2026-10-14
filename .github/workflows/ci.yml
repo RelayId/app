@@ -55,6 +55,14 @@ jobs:
       - name: Validate Expo configuration
         run: pnpm exec expo config --type public
 
+      - name: Validate Play phone version code lane
+        shell: bash
+        run: |
+          set -euo pipefail
+          version_code="$(node -p "require('./app.json').expo.android.versionCode")"
+          test "$version_code" -ge 1 -a "$version_code" -le 2100000000
+          test $((version_code % 2)) -eq 1
+
       - name: Check generated diff
         run: git diff --check
 
