@@ -237,16 +237,13 @@ jobs:
           node <<'NODE'
           const fs = require('node:fs');
           const path = 'app/build.gradle';
-          let source = fs.readFileSync(path, 'utf8');
-          if (!/\bsplits\s*\{\s*abi\s*\{/m.test(source)) {
-            throw new Error('Generated Android Gradle file has no ABI split block to remove.');
-          }
+          const source = fs.readFileSync(path, 'utf8');
           const bundleSource = source.replace(
-            /\n\s*splits\s*\{\s*abi\s*\{[\s\S]*?\n\s*\}\s*\}\s*(?=\n\s*\/\/|\n\s*defaultConfig|\n\s*buildTypes)/,
-            '\n',
+            /(splits\s*\{\s*abi\s*\{\s*)enable\s+true/,
+            '$1enable false',
           );
           if (bundleSource === source) {
-            throw new Error('Unable to remove ABI split block before building the AAB.');
+            throw new Error('Generated Android Gradle file has no enabled ABI split block.');
           }
           fs.writeFileSync(path, bundleSource);
           NODE
