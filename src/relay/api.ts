@@ -113,11 +113,12 @@ export async function signedRequest<T>(
     path: string,
     body: Uint8Array,
     prompt = 'Approve Relay request',
+    requireAuthentication = true,
 ): Promise<T> {
     const timestamp = Math.floor(Date.now() / 1000).toString();
     const nonce = encodeBase64Url(randomBytes(24));
     const canonical = await canonicalRequest(method, path, timestamp, nonce, body);
-    const p256 = await signP256(account.p256Alias, canonical, prompt);
+    const p256 = await signP256(account.p256Alias, canonical, prompt, requireAuthentication);
     const mldsa65 = await signMLDSA(account.mldsaSeedKey, canonical);
 
     return request(new URL(path, account.origin), {
@@ -159,7 +160,7 @@ export function denyLogin(account: Account, id: string, challenge: string): Prom
 }
 
 export function generateCode(account: Account): Promise<{ code: string; expires_at: string }> {
-    return signedRequest(account, 'POST', '/api/codes', jsonBytes({}), 'Generate Relay code');
+    return signedRequest(account, 'POST', '/api/codes', jsonBytes({}), 'Generate Relay code', false);
 }
 
 export function registerWatchCapability(account: Account): Promise<WatchCapability> {

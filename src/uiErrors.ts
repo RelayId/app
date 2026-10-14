@@ -4,7 +4,8 @@ export function userError(error: unknown, fallback = 'Something went wrong. Try 
 
     if (value.includes('timed out') || value.includes('failed to fetch') || value.includes('network request failed'))
         return 'The Relay could not be reached. Check the address and your connection.';
-    if (value.includes('already connected')) return 'This Relay is already connected on this device.';
+    if (value.includes('all configured providers')) return 'All configured providers for this Relay are already connected.';
+    if (value.includes('already connected')) return 'This Relay provider is already connected on this device.';
     if (value.includes('no sign-in providers')) return 'This Relay has no available sign-in providers.';
     if (value.includes('expired')) return 'This request expired. Start again.';
     if (value.includes('cancelled')) return 'The sign-in was cancelled.';

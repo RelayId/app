@@ -46,11 +46,11 @@ import { deleteAccountMetadata } from '../src/relay/storage';
 import { loadAccounts } from '../src/relay/storage';
 import { saveAccount } from '../src/relay/storage';
 
-const account = (id: string, email = 'person@example.com') => ({
+const account = (id: string, email = 'person@example.com', provider = 'google') => ({
     id,
     origin: 'https://relay.example.com',
     email,
-    provider: 'google',
+    provider,
     deviceName: 'Phone',
     credential: `rdc.${id}.credential`,
     credentialExpiresAt: '2099-01-01T00:00:00Z',
@@ -81,10 +81,16 @@ describe('chunked account storage', () => {
         await expect(loadAccounts()).resolves.toEqual([previous]);
     });
 
-    it('rejects a second account for the same Relay origin', async () => {
+    it('rejects a second account for the same Relay provider', async () => {
         await saveAccount(account('first'));
 
         await expect(saveAccount(account('second'))).rejects.toThrow('already connected');
+    });
+
+    it('allows multiple providers for the same Relay origin', async () => {
+        await saveAccount(account('google'));
+        await expect(saveAccount(account('github', 'person@example.com', 'github'))).resolves.toBeUndefined();
+        await expect(loadAccounts()).resolves.toHaveLength(2);
     });
 
     it('allows replacing the existing account for the same Relay origin', async () => {

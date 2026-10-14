@@ -120,8 +120,7 @@ export function Enroll({
             const p256 = await createKeysWithOptions({
                 keyAlias: alias,
                 keyType: 'ec256',
-                requireAuthentication: true,
-                allowDeviceCredentials: true,
+                requireAuthentication: false,
                 failIfExists: true,
             });
             const seed = randomBytes(32);

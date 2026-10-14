@@ -1,4 +1,4 @@
-import type { MobileCodeCapability, Provider } from '../relay/models';
+import type { Account, MobileCodeCapability, Provider } from '../relay/models';
 import { AnimatedPressable } from '../components/AnimatedPressable';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { KeyboardAvoidingView } from 'react-native';
@@ -20,14 +20,14 @@ import { useState } from 'react';
 import { useRef } from 'react';
 
 export type AddRelayProps = {
-    existingOrigins: string[];
+    existingAccounts: Pick<Account, 'origin' | 'provider'>[];
     initialOrigin?: string;
     onBack: () => void;
     onScan: (origin: string) => void;
     onNext: (origin: string, providers: Provider[], mobileCode: MobileCodeCapability) => void;
 };
 
-export function AddRelay({ existingOrigins, initialOrigin, onBack, onScan, onNext }: AddRelayProps) {
+export function AddRelay({ existingAccounts, initialOrigin, onBack, onScan, onNext }: AddRelayProps) {
     const [origin, setOrigin] = useState(initialOrigin ?? '');
     const [checking, setChecking] = useState(false);
     const [error, setError] = useState<string>();
@@ -45,17 +45,23 @@ export function AddRelay({ existingOrigins, initialOrigin, onBack, onScan, onNex
 
         try {
             const normalized = normalizeOrigin(origin, __DEV__);
-            if (existingOrigins.includes(normalized)) {
-                throw new Error('This Relay is already connected.');
-            }
-
             const discovery = await getProviders(normalized);
 
-            if (discovery.providers.length === 0) {
+            const availableProviders = discovery.providers.filter(
+                (provider) =>
+                    !existingAccounts.some(
+                        (account) => account.origin === normalized && account.provider === provider.id,
+                    ),
+            );
+
+            if (availableProviders.length === 0) {
+                if (discovery.providers.length > 0) {
+                    throw new Error('All configured providers for this Relay are already connected.');
+                }
                 throw new Error('This Relay has no sign-in providers configured yet.');
             }
 
-            onNext(normalized, discovery.providers, discovery.mobileCode);
+            onNext(normalized, availableProviders, discovery.mobileCode);
         } catch (error) {
             setError(userError(error, 'The Relay could not be reached. Check the address and try again.'));
         } finally {

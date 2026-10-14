@@ -1,3 +1,5 @@
+import { sign } from '@sbaiahmed1/react-native-biometrics';
+import { SignatureAlgorithm } from '@sbaiahmed1/react-native-biometrics';
 import { signWithOptions } from '@sbaiahmed1/react-native-biometrics';
 import { InputEncoding } from '@sbaiahmed1/react-native-biometrics';
 import { getPublicKey } from '@sbaiahmed1/react-native-biometrics';
@@ -41,15 +43,32 @@ export async function signMLDSA(seedKey: string, message: Uint8Array): Promise<s
     return encodeBase64Url(new Uint8Array(signature));
 }
 
-export async function signP256(alias: string, message: Uint8Array, prompt: string): Promise<string> {
-    const result = await signWithOptions({
-        keyAlias: alias,
-        data: encodeBase64(message),
-        inputEncoding: InputEncoding.Base64,
-        promptTitle: prompt,
-    });
+export async function signP256(
+    alias: string,
+    message: Uint8Array,
+    prompt: string,
+    requireAuthentication = true,
+): Promise<string> {
+    const result = requireAuthentication
+        ? await signWithOptions({
+              keyAlias: alias,
+              data: encodeBase64(message),
+              inputEncoding: InputEncoding.Base64,
+              promptTitle: prompt,
+          })
+        : await sign({
+              keyAlias: alias,
+              data: encodeBase64(message),
+              inputEncoding: InputEncoding.Base64,
+              algorithm: SignatureAlgorithm.SHA256withECDSA,
+          });
 
-    if (!result.success || !result.signature) throw new Error('P-256 signing was cancelled or failed');
+    if (!result.success || !result.signature) {
+        if (!requireAuthentication && result.errorCode === 'KEY_REQUIRES_AUTHENTICATION') {
+            throw new Error('Re-enroll this Relay account to generate codes without device authentication.');
+        }
+        throw new Error('P-256 signing was cancelled or failed');
+    }
 
     const signature = decodeBase64(result.signature);
     validateP256DerSignature(signature);

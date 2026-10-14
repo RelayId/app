@@ -112,8 +112,15 @@ export async function saveAccount(account: Account, replacingAccountID?: string)
         throw new Error('This device already has the maximum number of Relay accounts');
 
     const existingAccounts = await Promise.all(ids.filter((id) => id !== account.id).map((id) => readAccount(id)));
-    if (existingAccounts.some((existing) => existing.origin === account.origin && existing.id !== replacingAccountID)) {
-        throw new Error('This Relay is already connected');
+    if (
+        existingAccounts.some(
+            (existing) =>
+                existing.origin === account.origin &&
+                existing.provider === account.provider &&
+                existing.id !== replacingAccountID,
+        )
+    ) {
+        throw new Error('This Relay provider is already connected');
     }
 
     const previous = await readManifest(account.id);

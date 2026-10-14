@@ -23,6 +23,7 @@ import { generateCode } from '../src/relay/api';
 import { denyLogin } from '../src/relay/api';
 import { getLogin } from '../src/relay/api';
 import type { Account } from '../src/relay/models';
+import { signP256 } from '../src/relay/crypto';
 
 const account: Account = {
     id: 'account',
@@ -114,5 +115,6 @@ describe('Relay API contract', () => {
 
         const [, init] = (globalThis.fetch as jest.Mock).mock.calls[0] as [URL, RequestInit];
         expect(init.body).toBe('{}');
+        expect(signP256).toHaveBeenLastCalledWith('p256', expect.any(Uint8Array), 'Generate Relay code', false);
     });
 });
