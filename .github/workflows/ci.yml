@@ -172,10 +172,31 @@ jobs:
           else
             gh release create latest --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title 'Latest RelayId Android' --prerelease --latest
           fi
+          release_ready=false
+          for attempt in 1 2 3 4 5 6 7 8 9 10; do
+            if gh release view latest --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+              release_ready=true
+              break
+            fi
+            sleep 2
+          done
+          if [ "$release_ready" != true ]; then
+            echo 'The rolling release was not available after creation.' >&2
+            exit 1
+          fi
           while IFS= read -r asset; do
             gh release delete-asset latest "$asset" --repo "$GITHUB_REPOSITORY" --yes >/dev/null 2>&1 || true
           done < <(gh release view latest --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' | grep '^relayid-android' || true)
-          gh release upload latest relayid-android.aab relayid-android-arm64-v8a.apk relayid-android-armeabi-v7a.apk --repo "$GITHUB_REPOSITORY" --clobber
+          for attempt in 1 2 3 4 5; do
+            if gh release upload latest relayid-android.aab relayid-android-arm64-v8a.apk relayid-android-armeabi-v7a.apk --repo "$GITHUB_REPOSITORY" --clobber; then
+              break
+            fi
+            if [ "$attempt" = 5 ]; then
+              echo 'The rolling release assets could not be uploaded.' >&2
+              exit 1
+            fi
+            sleep 3
+          done
 
       - name: Publish update manifest metadata
         if: github.event_name != 'pull_request' && env.MANIFEST_DISPATCH_TOKEN != ''
