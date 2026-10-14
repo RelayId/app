@@ -24,7 +24,8 @@
             "expo-secure-store",
             "@sbaiahmed1/react-native-biometrics",
             "./plugins/withRelayAndroidDebugBundle",
-            "./plugins/withRelayAndroidSigning"
+            "./plugins/withRelayAndroidSigning",
+            "./plugins/withRelayAndroidVersionCode"
         ]
     }
 }

@@ -71,6 +71,7 @@ jobs:
     runs-on: ubuntu-24.04
     permissions:
       contents: write
+      actions: write
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -110,6 +111,21 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Allocate Android version code
+        if: github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ secrets.RELAYID_VERSION_CODE_TOKEN || secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          current='${{ vars.RELAYID_VERSION_CODE }}'
+          if ! [[ "$current" =~ ^[0-9]+$ ]]; then
+            echo 'Invalid RELAYID_VERSION_CODE repository variable.' >&2
+            exit 1
+          fi
+          next="$((current + 2))"
+          gh variable set RELAYID_VERSION_CODE --repo "$GITHUB_REPOSITORY" --body "$next"
+          echo "RELAYID_ANDROID_VERSION_CODE=$next" >> "$GITHUB_ENV"
 
       - name: Configure release signing
         if: github.event_name != 'pull_request'
@@ -214,7 +230,7 @@ jobs:
         run: |
           set -euo pipefail
           version_name="$(node -p "require('./app.json').expo.version")"
-          version_code="$(node -p "require('./app.json').expo.android.versionCode")"
+          version_code="${RELAYID_ANDROID_VERSION_CODE:-$(node -p "require('./app.json').expo.android.versionCode")}"
           arm64_digest="$(sha256sum relayid-android-arm64-v8a.apk | cut -d ' ' -f1)"
           v7a_digest="$(sha256sum relayid-android-armeabi-v7a.apk | cut -d ' ' -f1)"
           aab_digest="$(sha256sum relayid-android.aab | cut -d ' ' -f1)"
