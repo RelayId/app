@@ -1,20 +1,13 @@
-import { getConnectedWatches, getWatchInstallerStatus, installWatchArtifact, type WatchDevice } from 'relayid-wear';
-import { authenticateWithOptions } from '@sbaiahmed1/react-native-biometrics';
-import { checkForUpdates, getDirectApkUrl } from '../../relay/updates';
 import { AnimatedPressable } from '../../components/AnimatedPressable';
-import { removeAllLocalAccounts } from '../../relay/keyLifecycle';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { FeedbackModal } from '../../components/FeedbackModal';
-import { removeLocalAccount } from '../../relay/keyLifecycle';
 import { RotateCcw } from 'lucide-react-native';
 import type { Account } from '../../relay/models';
 import { createCommonStyles } from '../../styles';
-import { getWatchStatus } from 'relayid-wear';
 import { useTheme } from '../../hooks/useTheme';
 import { Trash2 } from 'lucide-react-native';
 import { StyleSheet } from 'react-native';
 import { ScrollView } from 'react-native';
-import { userError } from '../../uiErrors';
 import { View } from 'react-native';
 import { Text } from 'react-native';
 import { useEffect } from 'react';
@@ -37,8 +30,6 @@ export function Settings({ accounts, onBack, onDeleted, onReenroll }: SettingsPr
     const [watchStatusLoading, setWatchStatusLoading] = useState(true);
     const [watchInstalling, setWatchInstalling] = useState(false);
     const [watchStatusError, setWatchStatusError] = useState<string>();
-    const [watchPickerVisible, setWatchPickerVisible] = useState(false);
-    const [watchChoices, setWatchChoices] = useState<WatchDevice[]>([]);
 
     async function refreshWatchStatus(): Promise<void> {
         setWatchStatusLoading(true);
@@ -59,7 +50,7 @@ export function Settings({ accounts, onBack, onDeleted, onReenroll }: SettingsPr
 
     async function chooseWatch(): Promise<void> {
         setWatchStatusError(undefined);
-        setFeedback({ title: 'Choose a Watch', message: 'Demo state: one connected Wear OS watch is available.' });
+        await installWatch('demo-watch');
     }
 
     useEffect(() => {
@@ -150,21 +141,6 @@ export function Settings({ accounts, onBack, onDeleted, onReenroll }: SettingsPr
                     </AnimatedPressable>
                 </View>
             </ScrollView>
-            <FeedbackModal
-                visible={watchPickerVisible}
-                title="Choose a Watch"
-                message="Select which connected Wear OS watch should receive the installer."
-                actions={[
-                    ...watchChoices.map((watch) => ({
-                        label: `${watch.displayName || 'Wear OS watch'}${watch.nearby ? '' : ' (via phone)'}`,
-                        onPress: () => {
-                            setWatchPickerVisible(false);
-                            void installWatch(watch.id);
-                        },
-                    })),
-                    { label: 'Cancel', onPress: () => setWatchPickerVisible(false) },
-                ]}
-            />
             <FeedbackModal
                 visible={pendingDelete !== undefined}
                 title="Delete account?"

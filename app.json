@@ -23,6 +23,7 @@
             ["expo-camera", { "cameraPermission": "RelayId uses the camera to scan Relay login codes." }],
             "expo-secure-store",
             "@sbaiahmed1/react-native-biometrics",
+            "./plugins/withRelayAndroidDebugBundle",
             "./plugins/withRelayAndroidSigning"
         ]
     }

@@ -1,6 +1,9 @@
 [CmdletBinding()]
 param(
-    [string]$BuildRoot = 'C:\relayid-android-build',
+    [string]$BuildRoot = 'C:\r',
+    [ValidateSet('Debug', 'Release')]
+    [string]$Configuration = 'Release',
+    [string]$Architectures = 'arm64-v8a',
     [string]$Serial,
     [switch]$Install
 )
@@ -8,6 +11,10 @@ param(
 $ErrorActionPreference = 'Stop'
 $env:NO_COLOR = $null
 $SourceRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+
+if ($Configuration -eq 'Release' -and $env:RELAYID_REQUIRE_SIGNING -ne 'true') {
+    throw 'Release builds require RELAYID_REQUIRE_SIGNING=true and the RelayId keystore environment variables.'
+}
 
 function Get-InputHash([string[]]$Paths) {
     $entries = foreach ($path in $Paths) {
@@ -84,7 +91,7 @@ try {
     $env:ANDROID_SDK_ROOT = $env:ANDROID_HOME
     Push-Location (Join-Path $BuildRoot 'android')
     try {
-        Invoke-Checked '.\gradlew.bat' @('assembleRelease', '--no-daemon', '--console', 'plain', '--warning-mode', 'none', '--max-workers=2', '-PreactNativeArchitectures=arm64-v8a')
+        Invoke-Checked '.\gradlew.bat' @("assemble$Configuration", '--no-daemon', '--console', 'plain', '--warning-mode', 'none', '--max-workers=2', "-PreactNativeArchitectures=$Architectures")
     }
     finally {
         Pop-Location
@@ -94,7 +101,8 @@ finally {
     Pop-Location
 }
 
-$apk = Join-Path $BuildRoot 'android\app\build\outputs\apk\release\app-release.apk'
+$configurationDirectory = $Configuration.ToLowerInvariant()
+$apk = Join-Path $BuildRoot "android\app\build\outputs\apk\$configurationDirectory\app-$configurationDirectory.apk"
 Write-Output "APK=$apk"
 
 if ($Install) {
