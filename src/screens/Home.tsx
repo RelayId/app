@@ -1,10 +1,10 @@
 import type { Account, MobileCodeCapability } from '../relay/models';
 import { AnimatedPressable } from '../components/AnimatedPressable';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { ChevronRight } from 'lucide-react-native';
 import { ChevronDown } from 'lucide-react-native';
 import { createCommonStyles } from '../styles';
 import { useTheme } from '../hooks/useTheme';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { StyleSheet } from 'react-native';
 import { Pressable } from 'react-native';
 import { Animated } from 'react-native';
@@ -24,6 +24,7 @@ export type HomeProps = {
     onCode: () => void;
     mobileCode?: MobileCodeCapability;
     onSettings: () => void;
+    onSecretTap?: () => void;
 };
 
 export function Home({
@@ -35,6 +36,7 @@ export function Home({
     onCode,
     mobileCode,
     onSettings,
+    onSecretTap,
 }: HomeProps) {
     const entrance = useRef(new Animated.Value(0)).current;
     const [pickerOpen, setPickerOpen] = useState(false);
@@ -64,13 +66,13 @@ export function Home({
                         },
                     ]}
                 >
-                    <View style={styles.illustration}>
+                    <Pressable accessibilityLabel="RelayId" onPress={onSecretTap} style={styles.illustration}>
                         <View style={styles.illustrationTop} />
                         <View style={styles.illustrationBody}>
                             <View style={styles.illustrationDot} />
                             <View style={styles.illustrationLine} />
                         </View>
-                    </View>
+                    </Pressable>
 
                     <Text style={styles.title}>{accounts.length === 0 ? 'Welcome to RelayId' : 'Your relays'}</Text>
 

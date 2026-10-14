@@ -1,29 +1,35 @@
+import { readWatchCapability, saveAccount, saveWatchCapability } from './relay/storage';
 import { authenticateWithOptions } from '@sbaiahmed1/react-native-biometrics';
+import { checkForUpdates, type AvailableUpdate } from './relay/updates';
 import type { MobileCodeCapability, Provider } from './relay/models';
+import { WearInstallPrompt } from './components/WearInstallPrompt';
 import { AnimatedPressable } from './components/AnimatedPressable';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { FeedbackModal } from './components/FeedbackModal';
 import { removeLocalAccount } from './relay/keyLifecycle';
+import { UpdatePrompt } from './components/UpdatePrompt';
+import type { UpdateArtifact } from './relay/updates';
+import { registerWatchCapability } from './relay/api';
 import { parseRelayConfigQR } from './relay/origin';
+import { setWatchCredentials } from 'relayid-wear';
 import { parseRelayLoginQR } from './relay/origin';
 import { useAccounts } from './hooks/useAccounts';
+import { publishRelayState } from './relay/wear';
 import type { Account } from './relay/models';
 import { Settings } from './screens/Settings';
-import { readWatchCapability, saveAccount, saveWatchCapability } from './relay/storage';
+import { getWatchStatus } from 'relayid-wear';
 import { createCommonStyles } from './styles';
 import { AddRelay } from './screens/AddRelay';
 import { useTheme } from './hooks/useTheme';
 import { Approve } from './screens/Approve';
 import { getProviders } from './relay/api';
-import { registerWatchCapability } from './relay/api';
-import { publishRelayState } from './relay/wear';
-import { setWatchCredentials } from 'relayid-wear';
+import { BackHandler } from 'react-native';
 import { StyleSheet } from 'react-native';
 import { Enroll } from './screens/Enroll';
+import { TestApp } from './test/TestApp';
 import { StatusBar } from 'react-native';
 import { AppState } from 'react-native';
-import { BackHandler } from 'react-native';
 import type { ReactNode } from 'react';
 import { userError } from './uiErrors';
 import { Linking } from 'react-native';
@@ -36,11 +42,6 @@ import { Text } from 'react-native';
 import { useEffect } from 'react';
 import { useState } from 'react';
 import { useRef } from 'react';
-import { UpdatePrompt } from './components/UpdatePrompt';
-import { checkForUpdates, type AvailableUpdate } from './relay/updates';
-import { getWatchStatus } from 'relayid-wear';
-import { WearInstallPrompt } from './components/WearInstallPrompt';
-import type { UpdateArtifact } from './relay/updates';
 
 export type Screen =
     | { name: 'home' }
@@ -84,6 +85,8 @@ export function AppContent() {
     const [reconcileAttempt, setReconcileAttempt] = useState(0);
     const [availableUpdate, setAvailableUpdate] = useState<AvailableUpdate>();
     const [watchArtifact, setWatchArtifact] = useState<UpdateArtifact>();
+    const [testMode, setTestMode] = useState(false);
+    const testTapCount = useRef(0);
     const [pendingLoginLink, setPendingLoginLink] = useState<{ origin: string; id: string }>();
     const reconcilingAccounts = useRef(false);
     const watchTokens = useRef(new Map<string, string>());
@@ -97,6 +100,8 @@ export function AppContent() {
     const deviceName = Device.deviceName || Device.modelName || 'Relay client';
 
     useEffect(() => {
+        if (testMode) return;
+
         let active = true;
         const check = () => {
             void checkForUpdates()
@@ -115,10 +120,10 @@ export function AppContent() {
             active = false;
             clearInterval(interval);
         };
-    }, []);
+    }, [testMode]);
 
     useEffect(() => {
-        if (!loaded || !unlocked) return;
+        if (testMode || !loaded || !unlocked) return;
 
         let active = true;
 
@@ -153,7 +158,7 @@ export function AppContent() {
         return () => {
             active = false;
         };
-    }, [accounts, loaded, selectedAccount, unlocked]);
+    }, [accounts, loaded, selectedAccount, testMode, unlocked]);
 
     useEffect(() => {
         unlockedRef.current = unlocked;
@@ -165,6 +170,7 @@ export function AppContent() {
 
     useEffect(() => {
         if (
+            testMode ||
             !appActiveRef.current ||
             !loaded ||
             accounts.length === 0 ||
@@ -205,7 +211,7 @@ export function AppContent() {
             active = false;
             unlockRunRef.current += 1;
         };
-    }, [accounts.length, loaded, unlockAttempt, unlocked]);
+    }, [accounts.length, loaded, testMode, unlockAttempt, unlocked]);
 
     useEffect(() => {
         const subscription = AppState.addEventListener('change', (state) => {
@@ -275,7 +281,7 @@ export function AppContent() {
     }, [accounts.length, screen, unlocked]);
 
     useEffect(() => {
-        if (!loaded || !unlocked || accounts.length === 0 || reconcilingAccounts.current) return;
+        if (testMode || !loaded || !unlocked || accounts.length === 0 || reconcilingAccounts.current) return;
 
         reconcilingAccounts.current = true;
         void (async () => {
@@ -341,7 +347,7 @@ export function AppContent() {
         })().finally(() => {
             reconcilingAccounts.current = false;
         });
-    }, [accounts, loaded, reconcileAttempt, reloadAccounts, unlocked]);
+    }, [accounts, loaded, reconcileAttempt, reloadAccounts, testMode, unlocked]);
 
     useEffect(() => {
         const openRelayLink = (value: string | null) => {
@@ -385,6 +391,22 @@ export function AppContent() {
 
     function home(): void {
         setScreen({ name: 'home' });
+    }
+
+    function openTestMode(): void {
+        testTapCount.current += 1;
+        if (testTapCount.current >= 5) {
+            testTapCount.current = 0;
+            setTestMode(true);
+        }
+    }
+
+    function closeTestMode(): void {
+        testTapCount.current += 1;
+        if (testTapCount.current >= 5) {
+            testTapCount.current = 0;
+            setTestMode(false);
+        }
     }
 
     function openProtectedAction(action: 'scan' | 'code'): void {
@@ -568,10 +590,15 @@ export function AppContent() {
                         onCode={() => void openProtectedAction('code')}
                         mobileCode={selectedAccount?.mobileCode}
                         onSettings={() => setScreen({ name: 'settings' })}
+                        onSecretTap={openTestMode}
                     />
                 );
             }
         }
+    }
+
+    if (testMode) {
+        return <TestApp onExitTap={closeTestMode} />;
     }
 
     return (
