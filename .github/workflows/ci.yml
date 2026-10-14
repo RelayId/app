@@ -309,12 +309,6 @@ jobs:
             sleep 3
           done
 
-      - name: Persist allocated Android version code
-        if: github.event_name != 'pull_request'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh variable set RELAYID_VERSION_CODE --repo "$GITHUB_REPOSITORY" --body "$RELAYID_ANDROID_VERSION_CODE"
-
       - name: Publish update manifest metadata
         if: github.event_name != 'pull_request' && env.MANIFEST_DISPATCH_TOKEN != ''
         env:
