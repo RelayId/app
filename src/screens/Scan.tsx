@@ -55,6 +55,7 @@ export function Scan({ account, mode = 'login', onBack, onLogin, onRelay }: Scan
 
                 const id = parsePinnedLoginQR(data, account.origin, __DEV__);
                 handled.current = true;
+                setValue(id);
                 void CameraView.dismissScanner();
                 onLogin(id);
             } catch {
@@ -112,9 +113,9 @@ export function Scan({ account, mode = 'login', onBack, onLogin, onRelay }: Scan
         }
 
         try {
-            onLogin(parsePinnedLoginQR(value, account.origin, __DEV__));
+            onLogin(parseLoginCode(value, account.origin));
         } catch (error) {
-            setFeedback({ title: 'QR rejected', message: userError(error, 'Invalid login URL.') });
+            setFeedback({ title: 'Login code rejected', message: userError(error, 'Enter the code from the login QR code.') });
         }
     }
 
@@ -137,7 +138,7 @@ export function Scan({ account, mode = 'login', onBack, onLogin, onRelay }: Scan
                         autoCapitalize="none"
                         autoCorrect={false}
                         placeholder={
-                            mode === 'relay' ? 'https://relay.example.com' : 'https://relay.example.com/login/...'
+                            mode === 'relay' ? 'relay.example.com' : 'login code'
                         }
                         value={value}
                         onChangeText={setValue}
@@ -161,6 +162,12 @@ export function Scan({ account, mode = 'login', onBack, onLogin, onRelay }: Scan
             />
         </SafeAreaView>
     );
+}
+
+function parseLoginCode(value: string, origin: string): string {
+    const trimmed = value.trim();
+    if (/^[A-Za-z0-9_-]+$/u.test(trimmed)) return trimmed;
+    return parsePinnedLoginQR(trimmed, origin, __DEV__);
 }
 
 function createStyles(theme: ReturnType<typeof useTheme>) {

@@ -8,17 +8,23 @@ import type {
 } from '../relay/models';
 
 const expiresAt = new Date(Date.now() + 60_000).toISOString();
-const remoteOrigin = process.env.EXPO_PUBLIC_TEST_RELAY_ORIGIN?.trim().replace(/\/+$/u, '');
+const exampleOrigin = 'https://relay.example.com';
 
 const providers = [
     { id: 'demo', name: 'Demo identity provider', provider: 'demo', enabled: true },
     { id: 'disabled', name: 'Unavailable provider', provider: 'disabled', enabled: false },
 ];
 
-async function remote<T>(path: string, init?: RequestInit): Promise<T> {
-    if (!remoteOrigin) throw new Error('Remote test Relay is not configured');
+function remoteOrigin(origin: string): string | undefined {
+    const value = origin.trim().replace(/\/+$/u, '');
+    return value && value !== exampleOrigin ? value : undefined;
+}
 
-    const response = await fetch(`${remoteOrigin}${path}`, {
+async function remote<T>(origin: string, path: string, init?: RequestInit): Promise<T> {
+    const base = remoteOrigin(origin);
+    if (!base) throw new Error('Remote test Relay is not configured');
+
+    const response = await fetch(`${base}${path}`, {
         ...init,
         headers: { Accept: 'application/json', 'Content-Type': 'application/json', ...init?.headers },
     });
@@ -28,19 +34,19 @@ async function remote<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export async function getProviders(_origin: string): Promise<ProviderDiscovery> {
-    if (remoteOrigin) {
+    if (remoteOrigin(_origin)) {
         const data = await remote<{
             providers: ProviderDiscovery['providers'];
             mobile_code: ProviderDiscovery['mobileCode'];
-        }>('/oidc/demo/providers');
+        }>(_origin, '/oidc/demo/providers');
         return { providers: data.providers, mobileCode: data.mobile_code };
     }
 
-    return Promise.resolve({ providers, mobileCode: { enabled: true, groups: 3 } });
+    return Promise.resolve({ providers, mobileCode: { enabled: true, groups: 2 } });
 }
 
 export async function getLogin(_account: Account, id: string): Promise<Login> {
-    if (remoteOrigin) return remote<Login>(`/oidc/demo/logins/${encodeURIComponent(id)}`);
+    if (remoteOrigin(_account.origin)) return remote<Login>(_account.origin, `/oidc/demo/logins/${encodeURIComponent(id)}`);
 
     return Promise.resolve({
         id,
@@ -53,8 +59,8 @@ export async function getLogin(_account: Account, id: string): Promise<Login> {
 }
 
 export async function approveLogin(_account: Account, _id: string, _challenge: string): Promise<void> {
-    if (remoteOrigin) {
-        await remote(`/oidc/demo/logins/${encodeURIComponent(_id)}/approve`, { method: 'POST', body: '{}' });
+    if (remoteOrigin(_account.origin)) {
+        await remote(_account.origin, `/oidc/demo/logins/${encodeURIComponent(_id)}/approve`, { method: 'POST', body: '{}' });
         return;
     }
 
@@ -62,8 +68,8 @@ export async function approveLogin(_account: Account, _id: string, _challenge: s
 }
 
 export async function denyLogin(_account: Account, _id: string, _challenge: string): Promise<void> {
-    if (remoteOrigin) {
-        await remote(`/oidc/demo/logins/${encodeURIComponent(_id)}/deny`, { method: 'POST', body: '{}' });
+    if (remoteOrigin(_account.origin)) {
+        await remote(_account.origin, `/oidc/demo/logins/${encodeURIComponent(_id)}/deny`, { method: 'POST', body: '{}' });
         return;
     }
 
@@ -71,9 +77,9 @@ export async function denyLogin(_account: Account, _id: string, _challenge: stri
 }
 
 export async function generateCode(_account: Account): Promise<{ code: string; expires_at: string }> {
-    if (remoteOrigin) return remote('/oidc/demo/codes', { method: 'POST', body: '{}' });
+    if (remoteOrigin(_account.origin)) return remote(_account.origin, '/oidc/demo/codes', { method: 'POST', body: '{}' });
 
-    return Promise.resolve({ code: '1234-5678-9012', expires_at: new Date(Date.now() + 60_000).toISOString() });
+    return Promise.resolve({ code: '1234-5678', expires_at: new Date(Date.now() + 60_000).toISOString() });
 }
 
 export function createEnrollment(

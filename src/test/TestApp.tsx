@@ -8,20 +8,22 @@ import { Scan } from './screens/Scan';
 import { Settings } from './screens/Settings';
 import { useState } from 'react';
 
-const testOrigin = process.env.EXPO_PUBLIC_TEST_RELAY_ORIGIN?.trim().replace(/\/+$/u, '') || 'https://relay.example.com';
+const exampleOrigin = 'https://relay.example.com';
 
-const testAccount: Account = {
-    id: 'test-account',
-    origin: testOrigin,
-    email: 'demo@example.com',
-    provider: 'demo',
-    deviceName: 'RelayId test device',
-    credential: 'test-credential',
-    credentialExpiresAt: '2099-01-01T00:00:00.000Z',
-    p256Alias: 'test-p256',
-    mldsaSeedKey: 'test-mldsa',
-    mobileCode: { enabled: true, groups: 3 },
-};
+function createTestAccount(origin: string): Account {
+    return {
+        id: 'test-account',
+        origin,
+        email: 'demo@example.com',
+        provider: 'demo',
+        deviceName: 'RelayId test device',
+        credential: 'test-credential',
+        credentialExpiresAt: '2099-01-01T00:00:00.000Z',
+        p256Alias: 'test-p256',
+        mldsaSeedKey: 'test-mldsa',
+        mobileCode: { enabled: true, groups: 2 },
+    };
+}
 
 const testProviders: Provider[] = [
     { id: 'demo', name: 'Demo identity provider', provider: 'demo', enabled: true },
@@ -33,11 +35,12 @@ type TestScreen =
     | { name: 'add'; origin?: string }
     | { name: 'enroll'; origin: string }
     | { name: 'scan'; mode?: 'login' | 'relay'; origin?: string }
-    | { name: 'approve' }
+    | { name: 'approve'; id: string }
     | { name: 'code' }
     | { name: 'settings' };
 
-export function TestApp({ onExitTap }: { onExitTap: () => void }) {
+export function TestApp({ onExitTap, relayOrigin }: { onExitTap: () => void; relayOrigin?: string }) {
+    const testAccount = createTestAccount(relayOrigin?.trim().replace(/\/+$/u, '') || exampleOrigin);
     const [screen, setScreen] = useState<TestScreen>({ name: 'home' });
 
     switch (screen.name) {
@@ -85,13 +88,13 @@ export function TestApp({ onExitTap }: { onExitTap: () => void }) {
                     account={testAccount}
                     mode={screen.mode}
                     onBack={() => setScreen({ name: 'home' })}
-                    onLogin={() => setScreen({ name: 'approve' })}
+                    onLogin={(id) => setScreen({ name: 'approve', id })}
                     onRelay={(origin) => setScreen({ name: 'add', origin })}
                 />
             );
 
         case 'approve':
-            return <Approve account={testAccount} id="test-login" onBack={() => setScreen({ name: 'home' })} />;
+            return <Approve account={testAccount} id={screen.id} onBack={() => setScreen({ name: 'home' })} />;
 
         case 'code':
             return <Code account={testAccount} onBack={() => setScreen({ name: 'home' })} />;

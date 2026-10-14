@@ -88,7 +88,7 @@ export function AddRelay({ existingAccounts, initialOrigin, onBack, onScan, onNe
                             ref={inputRef}
                             autoCapitalize="none"
                             keyboardType="url"
-                            placeholder="https://relay.example.com"
+                            placeholder="relay.example.com"
                             value={origin}
                             onChangeText={setOrigin}
                             style={styles.input}

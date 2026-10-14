@@ -22,6 +22,7 @@ import { getWatchStatus } from 'relayid-wear';
 import { createCommonStyles } from './styles';
 import { AddRelay } from './screens/AddRelay';
 import { useTheme } from './hooks/useTheme';
+import { ToastAndroid } from 'react-native';
 import { Approve } from './screens/Approve';
 import { getProviders } from './relay/api';
 import { BackHandler } from 'react-native';
@@ -96,6 +97,7 @@ export function AppContent() {
     const initialUnlockRequestedRef = useRef(false);
     const authInFlightRef = useRef(false);
     const wasBackgroundedRef = useRef(false);
+    const backgroundedAtRef = useRef<number | undefined>(undefined);
     const screenRef = useRef(screen);
     const deviceName = Device.deviceName || Device.modelName || 'Relay client';
 
@@ -203,8 +205,10 @@ export function AppContent() {
                 if (active && appActiveRef.current && run === unlockRunRef.current) setUnlockError(true);
             })
             .finally(() => {
-                authInFlightRef.current = false;
-                if (active && run === unlockRunRef.current) setUnlocking(false);
+                if (run === unlockRunRef.current) {
+                    authInFlightRef.current = false;
+                    if (active) setUnlocking(false);
+                }
             });
 
         return () => {
@@ -217,11 +221,21 @@ export function AppContent() {
         const subscription = AppState.addEventListener('change', (state) => {
             if (state === 'active') {
                 const resumedFromBackground = wasBackgroundedRef.current;
+                const backgroundDuration = backgroundedAtRef.current ? Date.now() - backgroundedAtRef.current : 0;
                 appActiveRef.current = true;
                 wasBackgroundedRef.current = false;
+                backgroundedAtRef.current = undefined;
                 setUnlockError(false);
                 setReconcileAttempt((value) => value + 1);
                 if (resumedFromBackground && accounts.length > 0 && !unlockedRef.current) {
+                    if (authInFlightRef.current && backgroundDuration > 750) {
+                        // A native prompt can remain unresolved when the screen is turned off.
+                        // Invalidate that stale attempt so the next render can start a fresh one.
+                        unlockRunRef.current += 1;
+                        authInFlightRef.current = false;
+                        setUnlocking(false);
+                    }
+
                     // Start a fresh native prompt for every real foreground session.
                     // BiometricPrompt itself can emit transient lifecycle events while it is visible;
                     // those are ignored below and must not consume this one-shot guard.
@@ -233,10 +247,12 @@ export function AppContent() {
 
             // BiometricPrompt can briefly change AppState while its system UI is visible.
             // Keep that prompt alive and do not treat its lifecycle as app backgrounding.
-            if (authInFlightRef.current) return;
-
             appActiveRef.current = false;
             wasBackgroundedRef.current = true;
+            backgroundedAtRef.current ??= Date.now();
+
+            if (authInFlightRef.current) return;
+
             unlockRunRef.current += 1;
             if (screenRef.current.name === 'scan') return;
 
@@ -398,6 +414,7 @@ export function AppContent() {
         if (testTapCount.current >= 5) {
             testTapCount.current = 0;
             setTestMode(true);
+            ToastAndroid.show('Demo mode enabled..', ToastAndroid.SHORT);
         }
     }
 
@@ -406,6 +423,7 @@ export function AppContent() {
         if (testTapCount.current >= 5) {
             testTapCount.current = 0;
             setTestMode(false);
+            ToastAndroid.show('Demo mode disabled..', ToastAndroid.SHORT);
         }
     }
 
@@ -480,6 +498,7 @@ export function AppContent() {
                 <AnimatedPressable
                     style={[common.primary, { marginTop: 24 }]}
                     onPress={() => {
+                        if (authInFlightRef.current) return;
                         setUnlockError(false);
                         setUnlockAttempt((value) => value + 1);
                     }}
@@ -598,7 +617,7 @@ export function AppContent() {
     }
 
     if (testMode) {
-        return <TestApp onExitTap={closeTestMode} />;
+        return <TestApp onExitTap={closeTestMode} relayOrigin={selectedAccount?.origin} />;
     }
 
     return (
@@ -634,7 +653,7 @@ export function AppContent() {
 
 function AppHash() {
     const theme = useTheme();
-    const hash = process.env.EXPO_PUBLIC_APP_HASH?.trim().slice(0, 12) || 'Unavailable';
+    const hash = process.env.EXPO_PUBLIC_APP_HASH?.trim().slice(0, 12) || 'unavailable';
     const styles = StyleSheet.create({
         container: {
             position: 'absolute',

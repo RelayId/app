@@ -45,7 +45,7 @@ export function Enroll({
     origin,
     deviceName,
     providers,
-    mobileCode = { enabled: false, groups: 3 },
+    mobileCode = { enabled: false, groups: 2 },
     replacement,
     onBack,
     onComplete,

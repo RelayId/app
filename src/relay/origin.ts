@@ -1,5 +1,7 @@
 export function normalizeOrigin(input: string, development = false): string {
-    const url = new URL(input.trim());
+    const trimmed = input.trim();
+    const withScheme = /^[a-z][a-z\d+.-]*:\/\//iu.test(trimmed) ? trimmed : `https://${trimmed}`;
+    const url = new URL(withScheme);
     if (url.username || url.password || url.search || url.hash || url.pathname !== '/') {
         throw new Error('Relay origin must contain only scheme, host, and optional port');
     }
