@@ -157,6 +157,40 @@ jobs:
           RELAYID_REQUIRE_SIGNING: ${{ github.event_name != 'pull_request' && 'true' || 'false' }}
         run: pnpm exec expo prebuild --clean --platform android
 
+      - name: Enable ARM ABI split APKs
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs = require('node:fs');
+          const path = 'android/app/build.gradle';
+          const source = fs.readFileSync(path, 'utf8');
+          const marker = /^android\s*\{/m;
+
+          if (!marker.test(source)) {
+            throw new Error('Generated Android Gradle file has no android block.');
+          }
+
+          if (/\bsplits\s*\{\s*abi\s*\{/m.test(source)) {
+            throw new Error('Generated Android Gradle file already contains ABI splits.');
+          }
+
+          const abiBlock = [
+            'android {',
+            '    splits {',
+            '        abi {',
+            '            enable true',
+            '            reset()',
+            '            include "arm64-v8a", "armeabi-v7a"',
+            '            universalApk false',
+            '        }',
+            '    }',
+          ].join('\n');
+          const configured = source.replace(marker, abiBlock);
+
+          fs.writeFileSync(path, configured);
+          NODE
+
       - name: Make Gradle wrapper executable
         run: chmod +x android/gradlew
 
@@ -167,11 +201,14 @@ jobs:
           EXPO_PUBLIC_APP_HASH: ${{ github.sha }}
           CXXFLAGS: -Wno-deprecated-declarations -Wno-overloaded-virtual
         run: |
-          ./gradlew assembleRelease bundleRelease --no-daemon --stacktrace --max-workers=2 -PreactNativeArchitectures=arm64-v8a
-          cp app/build/outputs/apk/release/app-release.apk "$GITHUB_WORKSPACE/relayid-android-arm64-v8a.apk"
+          set -euo pipefail
+          ./gradlew :app:assembleRelease :app:bundleRelease --no-daemon --stacktrace --max-workers=4 --build-cache -PreactNativeArchitectures=arm64-v8a,armeabi-v7a
+          test -f app/build/outputs/apk/release/app-arm64-v8a-release.apk
+          test -f app/build/outputs/apk/release/app-armeabi-v7a-release.apk
+          test -f app/build/outputs/bundle/release/app-release.aab
+          cp app/build/outputs/apk/release/app-arm64-v8a-release.apk "$GITHUB_WORKSPACE/relayid-android-arm64-v8a.apk"
           cp app/build/outputs/bundle/release/app-release.aab "$GITHUB_WORKSPACE/relayid-android.aab"
-          ./gradlew assembleRelease --no-daemon --stacktrace --max-workers=2 -PreactNativeArchitectures=armeabi-v7a
-          cp app/build/outputs/apk/release/app-release.apk "$GITHUB_WORKSPACE/relayid-android-armeabi-v7a.apk"
+          cp app/build/outputs/apk/release/app-armeabi-v7a-release.apk "$GITHUB_WORKSPACE/relayid-android-armeabi-v7a.apk"
 
       - name: Name release APK and AAB
         shell: bash
