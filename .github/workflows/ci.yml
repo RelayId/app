@@ -114,17 +114,20 @@ jobs:
 
       - name: Allocate Android version code
         if: github.event_name != 'pull_request'
-        env:
-          GH_TOKEN: ${{ secrets.RELAYID_VERSION_CODE_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           current='${{ vars.RELAYID_VERSION_CODE }}'
-          if ! [[ "$current" =~ ^[0-9]+$ ]]; then
-            echo 'Invalid RELAYID_VERSION_CODE repository variable.' >&2
-            exit 1
+          if [[ "$current" =~ ^[0-9]+$ ]]; then
+            baseline="$((current + 2))"
+          else
+            baseline=1
           fi
-          next="$((current + 2))"
-          gh variable set RELAYID_VERSION_CODE --repo "$GITHUB_REPOSITORY" --body "$next"
+          run_version="$((GITHUB_RUN_NUMBER * 2 - 1))"
+          if (( run_version > baseline )); then
+            next="$run_version"
+          else
+            next="$baseline"
+          fi
           echo "RELAYID_ANDROID_VERSION_CODE=$next" >> "$GITHUB_ENV"
 
       - name: Configure release signing

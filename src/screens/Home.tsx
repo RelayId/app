@@ -24,7 +24,6 @@ export type HomeProps = {
     onCode: () => void;
     mobileCode?: MobileCodeCapability;
     onSettings: () => void;
-    onSecretTap?: () => void;
 };
 
 export function Home({
@@ -36,7 +35,6 @@ export function Home({
     onCode,
     mobileCode,
     onSettings,
-    onSecretTap,
 }: HomeProps) {
     const entrance = useRef(new Animated.Value(0)).current;
     const [pickerOpen, setPickerOpen] = useState(false);
@@ -66,13 +64,13 @@ export function Home({
                         },
                     ]}
                 >
-                    <Pressable accessibilityLabel="RelayId" onPress={onSecretTap} style={styles.illustration}>
+                    <View style={styles.illustration} accessibilityLabel="RelayId">
                         <View style={styles.illustrationTop} />
                         <View style={styles.illustrationBody}>
                             <View style={styles.illustrationDot} />
                             <View style={styles.illustrationLine} />
                         </View>
-                    </Pressable>
+                    </View>
 
                     <Text style={styles.title}>{accounts.length === 0 ? 'Welcome to RelayId' : 'Your relays'}</Text>
 

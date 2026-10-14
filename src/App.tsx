@@ -22,13 +22,11 @@ import { getWatchStatus } from 'relayid-wear';
 import { createCommonStyles } from './styles';
 import { AddRelay } from './screens/AddRelay';
 import { useTheme } from './hooks/useTheme';
-import { ToastAndroid } from 'react-native';
 import { Approve } from './screens/Approve';
 import { getProviders } from './relay/api';
 import { BackHandler } from 'react-native';
 import { StyleSheet } from 'react-native';
 import { Enroll } from './screens/Enroll';
-import { TestApp } from './test/TestApp';
 import { StatusBar } from 'react-native';
 import { AppState } from 'react-native';
 import type { ReactNode } from 'react';
@@ -86,8 +84,6 @@ export function AppContent() {
     const [reconcileAttempt, setReconcileAttempt] = useState(0);
     const [availableUpdate, setAvailableUpdate] = useState<AvailableUpdate>();
     const [watchArtifact, setWatchArtifact] = useState<UpdateArtifact>();
-    const [testMode, setTestMode] = useState(false);
-    const testTapCount = useRef(0);
     const [pendingLoginLink, setPendingLoginLink] = useState<{ origin: string; id: string }>();
     const reconcilingAccounts = useRef(false);
     const watchTokens = useRef(new Map<string, string>());
@@ -102,8 +98,6 @@ export function AppContent() {
     const deviceName = Device.deviceName || Device.modelName || 'Relay client';
 
     useEffect(() => {
-        if (testMode) return;
-
         let active = true;
         const check = () => {
             void checkForUpdates()
@@ -122,10 +116,10 @@ export function AppContent() {
             active = false;
             clearInterval(interval);
         };
-    }, [testMode]);
+    }, []);
 
     useEffect(() => {
-        if (testMode || !loaded || !unlocked) return;
+        if (!loaded || !unlocked) return;
 
         let active = true;
 
@@ -160,7 +154,7 @@ export function AppContent() {
         return () => {
             active = false;
         };
-    }, [accounts, loaded, selectedAccount, testMode, unlocked]);
+    }, [accounts, loaded, selectedAccount, unlocked]);
 
     useEffect(() => {
         unlockedRef.current = unlocked;
@@ -172,7 +166,6 @@ export function AppContent() {
 
     useEffect(() => {
         if (
-            testMode ||
             !appActiveRef.current ||
             !loaded ||
             accounts.length === 0 ||
@@ -215,7 +208,7 @@ export function AppContent() {
             active = false;
             unlockRunRef.current += 1;
         };
-    }, [accounts.length, loaded, testMode, unlockAttempt, unlocked]);
+    }, [accounts.length, loaded, unlockAttempt, unlocked]);
 
     useEffect(() => {
         const subscription = AppState.addEventListener('change', (state) => {
@@ -297,7 +290,7 @@ export function AppContent() {
     }, [accounts.length, screen, unlocked]);
 
     useEffect(() => {
-        if (testMode || !loaded || !unlocked || accounts.length === 0 || reconcilingAccounts.current) return;
+        if (!loaded || !unlocked || accounts.length === 0 || reconcilingAccounts.current) return;
 
         reconcilingAccounts.current = true;
         void (async () => {
@@ -363,7 +356,7 @@ export function AppContent() {
         })().finally(() => {
             reconcilingAccounts.current = false;
         });
-    }, [accounts, loaded, reconcileAttempt, reloadAccounts, testMode, unlocked]);
+    }, [accounts, loaded, reconcileAttempt, reloadAccounts, unlocked]);
 
     useEffect(() => {
         const openRelayLink = (value: string | null) => {
@@ -407,24 +400,6 @@ export function AppContent() {
 
     function home(): void {
         setScreen({ name: 'home' });
-    }
-
-    function openTestMode(): void {
-        testTapCount.current += 1;
-        if (testTapCount.current >= 5) {
-            testTapCount.current = 0;
-            setTestMode(true);
-            ToastAndroid.show('Demo mode enabled..', ToastAndroid.SHORT);
-        }
-    }
-
-    function closeTestMode(): void {
-        testTapCount.current += 1;
-        if (testTapCount.current >= 5) {
-            testTapCount.current = 0;
-            setTestMode(false);
-            ToastAndroid.show('Demo mode disabled..', ToastAndroid.SHORT);
-        }
     }
 
     function openProtectedAction(action: 'scan' | 'code'): void {
@@ -609,15 +584,10 @@ export function AppContent() {
                         onCode={() => void openProtectedAction('code')}
                         mobileCode={selectedAccount?.mobileCode}
                         onSettings={() => setScreen({ name: 'settings' })}
-                        onSecretTap={openTestMode}
                     />
                 );
             }
         }
-    }
-
-    if (testMode) {
-        return <TestApp onExitTap={closeTestMode} relayOrigin={selectedAccount?.origin} />;
     }
 
     return (
