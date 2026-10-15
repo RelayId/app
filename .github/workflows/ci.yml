@@ -112,17 +112,26 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Allocate Android version code
+      - name: Allocate monotonic Android version code
         if: github.event_name != 'pull_request'
         run: |
           set -euo pipefail
           current='${{ vars.RELAYID_VERSION_CODE }}'
+          run_number='${{ github.run_number }}'
           if [[ "$current" =~ ^[0-9]+$ ]]; then
             baseline="$((current + 2))"
           else
             baseline=1
           fi
-          next="$baseline"
+          if [[ "$run_number" =~ ^[0-9]+$ ]]; then
+            candidate="$((run_number * 2 + 1))"
+          else
+            candidate=1
+          fi
+          next="$((candidate > baseline ? candidate : baseline))"
+          test "$next" -ge 1 -a "$next" -le 2100000000
+          test $((next % 2)) -eq 1
+          echo "Allocating phone version code $next (repository floor $baseline, workflow run $run_number)."
           echo "RELAYID_ANDROID_VERSION_CODE=$next" >> "$GITHUB_ENV"
 
       - name: Configure release signing
