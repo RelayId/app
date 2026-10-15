@@ -1,4 +1,3 @@
-import { getWatchStatus } from 'relayid-wear';
 import { authenticateWithOptions } from '@sbaiahmed1/react-native-biometrics';
 import { AnimatedPressable } from '../components/AnimatedPressable';
 import { removeAllLocalAccounts } from '../relay/keyLifecycle';
@@ -15,8 +14,6 @@ import { ScrollView } from 'react-native';
 import { userError } from '../uiErrors';
 import { View } from 'react-native';
 import { Text } from 'react-native';
-import { Linking } from 'react-native';
-import { useEffect } from 'react';
 import { useState } from 'react';
 
 export type SettingsProps = {
@@ -32,37 +29,6 @@ export function Settings({ accounts, onBack, onDeleted, onReenroll }: SettingsPr
     const [feedback, setFeedback] = useState<{ title: string; message?: string }>();
     const [pendingDelete, setPendingDelete] = useState<Account>();
     const [deleteAllPending, setDeleteAllPending] = useState(false);
-    const [watchStatus, setWatchStatus] = useState<{ connected: number; installed: number }>();
-    const [watchStatusLoading, setWatchStatusLoading] = useState(true);
-    const [watchStatusError, setWatchStatusError] = useState<string>();
-
-    async function refreshWatchStatus(): Promise<void> {
-        setWatchStatusLoading(true);
-        setWatchStatusError(undefined);
-        try {
-            setWatchStatus(await getWatchStatus());
-        } catch (error) {
-            setWatchStatusError(userError(error, 'Could not read Watch status.'));
-        } finally {
-            setWatchStatusLoading(false);
-        }
-    }
-
-    async function openPlayStore(): Promise<void> {
-        const marketUrl = 'market://details?id=com.relayid.app';
-        const webUrl = 'https://play.google.com/store/apps/details?id=com.relayid.app';
-
-        try {
-            await Linking.openURL(marketUrl);
-        } catch {
-            await Linking.openURL(webUrl);
-        }
-    }
-
-    useEffect(() => {
-        void refreshWatchStatus();
-    }, []);
-
     async function authenticate(action: string): Promise<boolean> {
         try {
             const result = await authenticateWithOptions({
@@ -152,27 +118,6 @@ export function Settings({ accounts, onBack, onDeleted, onReenroll }: SettingsPr
                     </View>
                 ))}
 
-                <View style={styles.watchCard}>
-                    <Text style={styles.sectionTitle}>RelayId Watch</Text>
-                    <Text style={styles.muted}>
-                        {watchStatusLoading
-                            ? 'Checking connected watches..'
-                            : watchStatus?.connected
-                              ? `${watchStatus.connected} connected ${watchStatus.connected === 1 ? 'watch' : 'watches'}; ${watchStatus.installed} ${watchStatus.installed === 1 ? 'has' : 'have'} RelayId installed.`
-                              : 'Connect a watch to use RelayId Watch.'}
-                    </Text>
-                    {watchStatusError ? <Text style={styles.errorText}>{watchStatusError}</Text> : null}
-                    <AnimatedPressable
-                        style={styles.secondary}
-                        onPress={() => void openPlayStore()}
-                    >
-                        <Text style={styles.secondaryText}>Get Watch from Google Play</Text>
-                    </AnimatedPressable>
-                    <AnimatedPressable style={styles.secondary} onPress={() => void refreshWatchStatus()}>
-                        <Text style={styles.secondaryText}>{watchStatusLoading ? 'Refreshing Watch status..' : 'Refresh Watch status'}</Text>
-                    </AnimatedPressable>
-                </View>
-
                 <View style={styles.actions}>
                     {accounts.length > 0 ? (
                         <AnimatedPressable style={styles.danger} onPress={() => setDeleteAllPending(true)}>
@@ -260,15 +205,6 @@ function createStyles(theme: ReturnType<typeof useTheme>) {
         },
         name: { color: theme.text, fontWeight: '700' },
         sectionTitle: { color: theme.text, fontSize: 18, fontWeight: '700' },
-        errorText: { color: theme.danger, fontSize: 13 },
-        watchCard: {
-            gap: 10,
-            padding: 16,
-            borderWidth: 1,
-            borderColor: theme.border,
-            borderRadius: 12,
-            backgroundColor: theme.surface,
-        },
         secondary: common.secondary,
         danger: { ...common.secondary, borderColor: theme.danger },
         dangerText: { ...common.secondaryText, color: theme.danger },

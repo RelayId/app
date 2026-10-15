@@ -1,13 +1,11 @@
 import { readWatchCapability, saveAccount, saveWatchCapability } from './relay/storage';
 import { authenticateWithOptions } from '@sbaiahmed1/react-native-biometrics';
-import { checkForUpdates, type AvailableUpdate } from './relay/updates';
 import type { MobileCodeCapability, Provider } from './relay/models';
 import { AnimatedPressable } from './components/AnimatedPressable';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { FeedbackModal } from './components/FeedbackModal';
 import { removeLocalAccount } from './relay/keyLifecycle';
-import { UpdatePrompt } from './components/UpdatePrompt';
 import { registerWatchCapability } from './relay/api';
 import { parseRelayConfigQR } from './relay/origin';
 import { setWatchCredentials } from 'relayid-wear';
@@ -79,7 +77,6 @@ export function AppContent() {
     const [unlockError, setUnlockError] = useState(false);
     const [unlockAttempt, setUnlockAttempt] = useState(0);
     const [reconcileAttempt, setReconcileAttempt] = useState(0);
-    const [availableUpdate, setAvailableUpdate] = useState<AvailableUpdate>();
     const [pendingLoginLink, setPendingLoginLink] = useState<{ origin: string; id: string }>();
     const reconcilingAccounts = useRef(false);
     const watchTokens = useRef(new Map<string, string>());
@@ -92,27 +89,6 @@ export function AppContent() {
     const backgroundedAtRef = useRef<number | undefined>(undefined);
     const screenRef = useRef(screen);
     const deviceName = Device.deviceName || Device.modelName || 'Relay client';
-
-    useEffect(() => {
-        let active = true;
-        const check = () => {
-            void checkForUpdates()
-                .then(async (result) => {
-                    if (active && result.app) setAvailableUpdate(result.app);
-                    if (!active || !result.app) return;
-                })
-                .catch(() => {
-                    // Update availability is non-critical and must never block the Relay client.
-                });
-        };
-
-        check();
-        const interval = setInterval(check, 6 * 60 * 60 * 1000);
-        return () => {
-            active = false;
-            clearInterval(interval);
-        };
-    }, []);
 
     useEffect(() => {
         if (!loaded || !unlocked) return;
@@ -587,15 +563,6 @@ export function AppContent() {
                 title={feedback?.title ?? ''}
                 message={feedback?.message}
                 actions={[{ label: 'Close', onPress: () => setFeedback(undefined) }]}
-            />
-            <UpdatePrompt
-                update={availableUpdate}
-                onLater={() => setAvailableUpdate(undefined)}
-                onUpdate={() => {
-                    const url = availableUpdate?.downloadUrl;
-                    setAvailableUpdate(undefined);
-                    if (url) void Linking.openURL(url);
-                }}
             />
         </View>
     );
